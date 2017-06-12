@@ -13,4 +13,26 @@ install_load('mgcv')
 # Now run the gam's for the structural data 
 # Collapse all fo the Users into MJ User bin for marcat 
 strucData$marcat[strucData$marcat=='MJ Frequent User'] <- 'MJ User'
+strucData <- strucData[-(which(strucData$goassessDxpmr7=='OP')),]
+# Now find the number of significant interactions for each group
+sigVol <- runGamModel(strucData, 'mprage_jlf_vol', 'averageManualRating')
+sigVolN <- length(which(p.adjust(sigVol[,2], method='fdr')<.05))
+sigCT <- runGamModel(strucData, 'mprage_jlf_ct', 'averageManualRating')
+sigCTN <- length(which(p.adjust(sigCT[,2], method='fdr')<.05))
+sigGMD <- runGamModel(strucData, 'mprage_jlf_gmd', 'averageManualRating')
+sigGMDN <- length(which(p.adjust(sigGMD[,2], method='fdr')<.05))
 
+# Now run CBF
+cbfData$marcat[cbfData$marcat=='MJ Frequent User'] <- 'MJ User'
+sigCBF <- runGamModel(cbfData, 'pcasl_jlf_cbf', 'pcaslTSNR')
+sigCBFN <- length(which(p.adjust(sigCBF[,2], method='fdr')<.05))
+
+# Now run the rest data
+# These don't run becvause we do not have any PS-Users
+restData$marcat[restData$marcat=='MJ Frequent User'] <- 'MJ User'
+sigReho <- runGamModel(restData, 'rest_jlf_reho', 'restRelMeanRMSMotion'))
+sigAlff <- returnTable(runGamModel(restData, 'rest_jlf_alff', 'restRelMeanRMSMotion'))
+
+# Now run the DTI data
+sigDTI <- runGamModel(dtiData, 'dti_jlf_tr', 'dti64Tsnr')
+sigDTIN <- length(which(p.adjust(sigDTI[,2], method='fdr')<.05))

@@ -6,7 +6,7 @@
 runGamModel <- function(dataFrame, grepPattern, qualityIndex){
   # First find all fo the columns that we will loop through
   columnIndex <- grep(grepPattern, names(dataFrame))
-  qualityCol <- grep(qualityIndex, names(dataFrame))
+  qualityCol <- grep(qualityIndex, names(dataFrame))[1]
   # Now declare our statics
   ageCol <- which(names(dataFrame)=='ageAtScan1')
   sexCol <- which(names(dataFrame)=='sex')
@@ -56,7 +56,31 @@ returnTable <- function(inputGamVals){
     return(output)
 }
 
-# Produce demographic data
-produceDemoData <- function(inputData, 'grepPattern'){
-  
+runGamModel <- function(dataFrame, grepPattern, qualityIndex){
+    # First find all fo the columns that we will loop through
+    columnIndex <- grep(grepPattern, names(dataFrame))
+    qualityCol <- grep(qualityIndex, names(dataFrame))[1]
+    # Now declare our statics
+    ageCol <- which(names(dataFrame)=='ageAtScan1')
+    sexCol <- which(names(dataFrame)=='sex')
+    mjCol <- which(names(dataFrame)=='marcat')
+    psCol <- which(names(dataFrame)=='goassessDxpmr7')
+    # Declare som values for which will be returned from the gam function
+    output <- NULL
+    # Now loop through each region and run the model
+    for(i in columnIndex){
+        # Get the roi name
+        roiName <- names(dataFrame)[i]
+        # First run the model
+        tmp <- gam(dataFrame[,i] ~ s(dataFrame[,ageCol]) + dataFrame[,sexCol] + dataFrame[,mjCol]*dataFrame[,psCol] + dataFrame[,qualityCol])
+        # Now grap our interaction terms
+        summaryVals <- summary(tmp)
+        sigTerms <- anova(tmp)$pTerms.pv[5]
+        # Now combine the roi witht he p value
+        sigTerms <- c(roiName, sigTerms)
+        # Now export the variables
+        output <- rbind(output, sigTerms)
+    }
+    # Now fix the column names
+    return(output)
 }
