@@ -4,7 +4,8 @@
 
 # Load any library(s)
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('ggplot2', 'grid', 'gridExtra', 'scales')
+source('/data/joy/BBL/projects/pncMJPS/scripts/02_runGamm/functions/functions.R')
+install_load('ggplot2', 'grid', 'gridExtra', 'scales', 'mgcv')
 
 # Declare any functions
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
@@ -67,10 +68,6 @@ dev.off()
 
 # Now do this for where we see signifianct CT interactions
 # This means we will have to find out which CT regions have signifianct interactions
-source('/data/joy/BBL/projects/pncMJPS/scripts/02_runGamm/functions/functions.R')
-source('/data/joy/BBL/projects/pncMJPS/scripts/01_dataPrep/scripts/dataPrep.R')
-strucData$marcat[strucData$marcat=='MJ Frequent User'] <- 'MJ User'
-install_load('mgcv')
 sigCT <- runGamModel(strucData, 'mprage_jlf_ct', 'averageManualRating')
 sigCT <- sigCT[which(p.adjust(sigCT[,2], method='fdr')<.05),]
 strucData <- strucData[-which(strucData$marcat==levels(strucData$marcat)[1]),]
@@ -91,3 +88,24 @@ for(i in sigCT[,1]){
   print(barPlotToPrint) 
 }
 dev.off()
+
+# Now do CBF
+cbfData$marcat[cbfData$marcat=='MJ Frequent User'] <- 'MJ User'
+cbfData <- cbfData[-which(cbfData$marcat==levels(cbfData$marcat)[1]),]
+cbfData <- cbfData[-which(cbfData$goassessDxpmr7==levels(cbfData$goassessDxpmr7)[1]),]
+sigCBF <- runGamModel(cbfData, 'pcasl_jlf_cbf', 'pcaslTSNR')
+sigCBFN <- length(which(p.adjust(sigCBF[,2], method='fdr')<.05))
+for(i in sigCBF[,1]){
+  mainTitle <- i
+  formulaValue <- as.formula(paste(mainTitle, '~ageAtScan1+ageAtScan1^2+sex'))
+  cbfData[,i] <- scale(residuals(lm(formulaValue, data=cbfData)))
+  foo <- summarySE(cbfData, measurevar=mainTitle, groupvars=c('marcat','goassessDxpmr7') , na.rm=T)
+  barPlotToPrint <- ggplot(foo, aes(x=factor(marcat), y=foo[,4], fill=goassessDxpmr7)) + 
+                           geom_bar(stat="identity", position=position_dodge(), size=.1) + 
+                           geom_errorbar(aes(ymin=foo[,4]-se, ymax=foo[,4]+se), 
+                           width = .2, position=position_dodge(.9)) + 
+                           ggtitle(mainTitle) +
+                           ylab('Mean CBF Value')#+ 
+                           #scale_y_continuous(limits=c(4,5.2),oob=rescale_none)
+  print(barPlotToPrint) 
+}
