@@ -71,11 +71,12 @@ runGamModel <- function(dataFrame, grepPattern, qualityIndex){
     for(i in columnIndex){
         # Get the roi name
         roiName <- names(dataFrame)[i]
+        formValue <- as.formula(paste(roiName, '~ s(ageAtScan1) + sex + race + marcat*goassessDxpmr7 +', qualityIndex))
         # First run the model
-        tmp <- gam(dataFrame[,i] ~ s(dataFrame[,ageCol]) + dataFrame[,sexCol] + dataFrame[,mjCol]*dataFrame[,psCol] + dataFrame[,qualityCol])
+        tmp <- gam(formValue, data=dataFrame)
         # Now grap our interaction terms
         summaryVals <- summary(tmp)
-        sigTerms <- anova(tmp)$pTerms.pv[5]
+        sigTerms <- anova(tmp)$pTerms.pv[6]
         # Now combine the roi witht he p value
         sigTerms <- c(roiName, sigTerms)
         # Now export the variables

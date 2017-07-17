@@ -5,7 +5,12 @@
 # Load any library(s)
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 source('/data/joy/BBL/projects/pncMJPS/scripts/02_runGamm/functions/functions.R')
-install_load('ggplot2', 'grid', 'gridExtra', 'scales', 'mgcv')
+#install_load('ggplot2', 'grid', 'gridExtra', 'scales', 'mgcv')
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(scales)
+library(mgcv)
 
 # Declare any functions
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
@@ -109,3 +114,42 @@ for(i in sigCBF[,1]){
                            #scale_y_continuous(limits=c(4,5.2),oob=rescale_none)
   print(barPlotToPrint) 
 }
+
+# Now produce our figures for stathis regions
+# First find the regions with nominally sig interactions
+# Now do the sttah parc
+tmp <- stathParc
+#stathParc <- stathParc[-which(stathParc$marcat=='MJ User'),]
+stathParc$marcat[stathParc$marcat=='MJ Frequent User'] <- 'MJ User'
+stathParc <- stathParc[-which(stathParc$marcat==levels(stathParc$marcat)[1]),]
+stathParc <- stathParc[-which(stathParc$goassessDxpmr7==levels(stathParc$goassessDxpmr7)[1]),]
+stathParc <- merge(strucData, stathParc, by=c('bblid', 'scanid'))
+colnames(stathParc) <- gsub(x=colnames(stathParc), pattern='.y', replacement='')
+stathGmd <- runGamModel(stathParc, 'NZMean_', 'averageManualRating')
+colValIndex <- which(as.numeric(stathGmd[,2]) <.05)
+pdf('nominallySigStahGmd.pdf')
+for(i in colValIndex){
+  colName <- paste("NZMean_", i, sep='')[1]
+  colIndex <- grep(colName, names(stathParc))
+  formulaValue <- as.formula(paste(colName, '~ageAtScan1+ageAtScan1^2+sex'))
+  stathParc[,colIndex] <- scale(residuals(lm(formulaValue, data=stathParc)))
+  foo <- summarySE(stathParc, measurevar=colName, groupvars=c('marcat','goassessDxpmr7') , na.rm=T)
+  barPlotToPrint <- ggplot(foo, aes(x=factor(marcat), y=foo[,4], fill=goassessDxpmr7)) + 
+                           geom_bar(stat="identity", position=position_dodge(), size=.1) + 
+                           geom_errorbar(aes(ymin=foo[,4]-se, ymax=foo[,4]+se), 
+                           width = .2, position=position_dodge(.9)) + 
+                           ggtitle(colName) +
+                           ylab('Mean GMD Value')#+ 
+                           #scale_y_continuous(limits=c(4,5.2),oob=rescale_none)
+  print(barPlotToPrint)   
+}
+dev.off()
+
+# Now do stath CT 
+stathCT$marcat[stathCT$marcat=='MJ Frequent User'] <- 'MJ User'
+stathCT <- stathCT[-which(stathCT$marcat==levels(stathCT$marcat)[1]),]
+stathCT <- stathCT[-which(stathCT$goassessDxpmr7==levels(stathCT$goassessDxpmr7)[1]),]
+stathCT <- merge(strucData, stathCT, by=intersect(names(stathCT),names(strucData)))
+colnames(stathCT) <- gsub(x=colnames(stathCT), pattern='.y', replacement='')
+sigStathCT <- runGamModel(stathCT, 'NZMean_', 'averageManualRating')
+
