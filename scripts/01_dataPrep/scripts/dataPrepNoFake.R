@@ -68,5 +68,27 @@ restData <- restData[which(restData$restExclude==0 & restData$bblid %in% bblidIn
 restData <- merge(restData, mjData, by='bblid')
 restData <- merge(restData, psData, by=c('bblid', 'scanid'))
 
+# Now do the stathis parcellation
+stathParc <- read.table('/data/joy/BBL/projects/pncMJPS/data/test.1D', header=T)
+n1601.subjs <- read.csv('/data/joy/BBL/projects/pncReproc2015/antsCT/n1601_bblid_scanid_dateid.csv')
+n1601.subjs <- n1601.subjs[,c(2,1)]
+colnames(stathParc)[1:2] <- c('bblid', 'scanid')
+stathParc[,2] <- strSplitMatrixReturn(charactersToSplit=stathParc[,2] ,'x')[,2]
+stathParc <- merge(stathParc, mjData, by='bblid')
+stathParc <- merge(stathParc, t1QAData, by=c('bblid', 'scanid'))
+stathParc <- merge(stathParc, psData, by=c('bblid', 'scanid'))
+stathParc <- stathParc[which(stathParc$averageManualRating!=0),]
+
+# NOw do stathis parc CT
+stathCT <- read.table('/data/joy/BBL/projects/pncMJPS/data/stathCTVals.1D', header=T)
+colnames(stathCT)[1:2] <- c('bblid', 'scanid')
+stathCT[,2] <- strSplitMatrixReturn(charactersToSplit=stathCT[,2] ,'x')[,2]
+stathCT <- merge(stathCT, mjData, by='bblid')
+stathCT <- merge(stathCT, t1QAData, by=c('bblid', 'scanid'))
+stathCT <- merge(stathCT, psData, by=c('bblid', 'scanid'))
+stathCT <- stathParc[which(stathCT$averageManualRating!=0),]
+
 # Now rm all variables we won't need
 rm(mjData, volData, gmdData, ctData, t1QAData, cbfQAData, trData, dtiQAData, alffData, rehoData, restQAData)
+
+
