@@ -1,0 +1,1 @@
+qsubp3 -l h_vmem=50.0G,s_vmem=50.0G -q himem.q ./runVoxel.sh
