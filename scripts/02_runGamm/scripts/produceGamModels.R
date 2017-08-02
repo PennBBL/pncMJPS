@@ -12,62 +12,73 @@ install_load('mgcv', 'voxel', 'ggplot2')
 
 # Now run the gam's for the structural data 
 # Collapse all fo the Users into MJ User bin for marcat 
+StrucDataFreeze <- strucData
+# First run all subjs who have used within the last year
 strucData$marcat[strucData$marcat=='MJ Frequent User'] <- 'MJ User'
-#strucData <- strucData[-which(strucData$marcat=='MJ User'),]
+strucData <- strucData[-which(strucData$dosage==1),]
 strucData <- strucData[-which(strucData$marcat==levels(strucData$marcat)[1]),]
 strucData <- strucData[-which(strucData$goassessDxpmr7==levels(strucData$goassessDxpmr7)[1]),]
 # Now find the number of significant interactions for each group
 sigVol <- runMainEffect(strucData, 'mprage_jlf_vol', 'averageManualRating')
 sigVolN <- length(which(p.adjust(sigVol[,2], method='fdr')<.05))
-plotMainEffects(pValueInfo=sigVol, dataFrame=strucData, pdfName='volMainMarcat.pdf', QC='averageManualRating')
+plotMainEffects(pValueInfo=sigVol, dataFrame=strucData, pdfName='volMainMarcatWithinYear.pdf', QC='averageManualRating')
 sigCT <- runMainEffect(strucData, 'mprage_jlf_ct', 'averageManualRating')
 sigCTN <- length(which(p.adjust(sigCT[,2], method='fdr')<.05))
-plotMainEffects(pValueInfo=sigCT, dataFrame=strucData, pdfName='ctMainMarcat.pdf', QC='averageManualRating')
+plotMainEffects(pValueInfo=sigCT, dataFrame=strucData, pdfName='ctMainMarcatWithinYear.pdf', QC='averageManualRating')
 sigGMD <- runMainEffect(strucData, 'mprage_jlf_gmd', 'averageManualRating')
 sigGMDN <- length(which(p.adjust(sigGMD[,2], method='fdr')<.05))
-plotMainEffects(pValueInfo=sigGMD, dataFrame=strucData, pdfName='gmdMainMarcat.pdf', QC='averageManualRating')
+plotMainEffects(pValueInfo=sigGMD, dataFrame=strucData, pdfName='gmdMainMarcatWithinYear.pdf', QC='averageManualRating')
 
-# Now do the sttah parc
-stathParc$marcat[stathParc$marcat=='MJ Frequent User'] <- 'MJ User'
-stathParc <- stathParc[-which(stathParc$marcat==levels(stathParc$marcat)[1]),]
-stathParc <- stathParc[-which(stathParc$goassessDxpmr7==levels(stathParc$goassessDxpmr7)[1]),]
-stathParc <- merge(strucData, stathParc, by=c('bblid', 'scanid'))
-colnames(stathParc) <- gsub(x=colnames(stathParc), pattern='.y', replacement='')
-stathGmd <- runMainEffect(stathParc, 'NZMean_', 'averageManualRating')
-stathGMDN <- length(which(p.adjust(stathGmd[,2], method='fdr')<.05))
-stathGMDN <-  which(stathGmd[,2]<.05)
-plotMainEffects(pValueInfo=stathGmd, dataFrame=stathParc, pdfName='gmdStathMainMarcat.pdf', QC='averageManualRating')
-# Now produce the nominally significant ROI's
-tmpVals <- unname(gsub(x=stathGmd[stathGMDN,1], pattern="NZMean_", replacement=''))
-
-
-# Now do stath CT 
-stathCT$marcat[stathCT$marcat=='MJ Frequent User'] <- 'MJ User'
-stathCT <- stathCT[-which(stathCT$marcat==levels(stathCT$marcat)[1]),]
-stathCT <- stathCT[-which(stathCT$goassessDxpmr7==levels(stathCT$goassessDxpmr7)[1]),]
-stathCT <- merge(strucData, stathCT, by=intersect(names(stathCT),names(strucData)))
-colnames(stathCT) <- gsub(x=colnames(stathCT), pattern='.y', replacement='')
-sigStathCT <- runMainEffect(stathCT, 'NZMean_', 'averageManualRating')
+# Now do only frequent users
+strucData <- strucData[-which(strucData$dosage==2 |strucData$dosage==3 | strucData$dosage==4)]
+# Now produce the plots
+sigVol <- runMainEffect(strucData, 'mprage_jlf_vol', 'averageManualRating')
+sigVolN <- length(which(p.adjust(sigVol[,2], method='fdr')<.05))
+plotMainEffects(pValueInfo=sigVol, dataFrame=strucData, pdfName='volMainMarcatFrequent.pdf', QC='averageManualRating')
+sigCT <- runMainEffect(strucData, 'mprage_jlf_ct', 'averageManualRating')
+sigCTN <- length(which(p.adjust(sigCT[,2], method='fdr')<.05))
+plotMainEffects(pValueInfo=sigCT, dataFrame=strucData, pdfName='ctMainMarcatFrequent.pdf', QC='averageManualRating')
+sigGMD <- runMainEffect(strucData, 'mprage_jlf_gmd', 'averageManualRating')
+sigGMDN <- length(which(p.adjust(sigGMD[,2], method='fdr')<.05))
+plotMainEffects(pValueInfo=sigGMD, dataFrame=strucData, pdfName='gmdMainMarcatFrequent.pdf', QC='averageManualRating')
 
 # Now run CBF
+CbfDataFreeze <- cbfData
+cbfData <- cbfData[-which(cbfData$dosage==1),]
 cbfData$marcat[cbfData$marcat=="MJ Frequent User"] <- 'MJ User'
-#cbfData <- cbfData[-which(cbfData$marcat=='MJ User'),]
 cbfData <- cbfData[-which(cbfData$marcat==levels(cbfData$marcat)[1]),]
 cbfData <- cbfData[-which(cbfData$goassessDxpmr7==levels(cbfData$goassessDxpmr7)[1]),]
-#cbfData$marcat[cbfData$marcat=='MJ Frequent User'] <- 'MJ User'
 sigCBF <- runMainEffect(cbfData, 'pcasl_jlf_cbf', 'pcaslTSNR')
 sigCBFN <- length(which(p.adjust(sigCBF[,2], method='fdr')<.05))
-plotMainEffects(pValueInfo=sigCBF, dataFrame=cbfData, pdfName='cbfMainMarcat.pdf', QC='pcaslTSNR')
+plotMainEffects(pValueInfo=sigCBF, dataFrame=cbfData, pdfName='cbfMainMarcatWithinYear.pdf', QC='pcaslTSNR')
+# Now run frequent only
+cbfData <- cbfData[-which(cbfData$dosage==2 |cbfData$dosage==3 | cbfData$dosage==4)]
+sigCBF <- runMainEffect(cbfData, 'pcasl_jlf_cbf', 'pcaslTSNR')
+plotMainEffects(pValueInfo=sigCBF, dataFrame=cbfData, pdfName='cbfMainMarcatFrequent.pdf', QC='pcaslTSNR')
+
 
 # Now run the rest data
 # These don't run becvause we do not have any PS-Users
-restData <- restData[-which(restData$marcat==levels(restData$marcat)[1]),]
+RestDataFreeze <- restData
+restData <- restData[-which(restData$dosage==1),]
+#restData <- restData[-which(restData$marcat==levels(restData$marcat)[1]),]
 #restData <- restData[-which(restData$goassessDxpmr7==levels(restData$goassessDxpmr7)[1]),]
 restData$marcat[restData$marcat=='MJ Frequent User'] <- 'MJ User'
 sigReho <- runMainEffect(restData, 'rest_jlf_reho', 'restRelMeanRMSMotion')
 sigRehoN <- length(which(p.adjust(sigReho[,2], method='fdr')<.05))
+plotMainEffects(pValueInfo=sigReho, dataFrame=restData, pdfName="rehoMainMarcatWithinYear.pdf", QC="restRelMeanRMSMotion")
 sigAlff <- runMainEffect(restData, 'rest_jlf_alff', 'restRelMeanRMSMotion')
 sigAlffN <- length(which(p.adjust(sigAlff[,2], method='fdr')<.05))
+plotMainEffects(pValueInfo=sigAlff, dataFrame=restData, pdfName="alffMainMarcatWithinYear.pdf", QC="restRelMeanRMSMotion")
+
+# Now run only frequent reho and alff data
+restData <- restData[-which(restData$dosage==2 |restData$dosage==3 | restData$dosage==4)]
+sigReho <- runMainEffect(restData, 'rest_jlf_reho', 'restRelMeanRMSMotion')
+sigRehoN <- length(which(p.adjust(sigReho[,2], method='fdr')<.05))
+plotMainEffects(pValueInfo=sigReho, dataFrame=restData, pdfName="rehoMainMarcatFrequent.pdf", QC="restRelMeanRMSMotion")
+sigAlff <- runMainEffect(restData, 'rest_jlf_alff', 'restRelMeanRMSMotion')
+sigAlffN <- length(which(p.adjust(sigAlff[,2], method='fdr')<.05))
+plotMainEffects(pValueInfo=sigAlff, dataFrame=restData, pdfName="alffMainMarcatFrequent.pdf", QC="restRelMeanRMSMotion")
 
 # Now run the DTI data
 sigDTI <- runMainEffect(dtiData, 'dti_jlf_tr', 'dti64Tsnr')
