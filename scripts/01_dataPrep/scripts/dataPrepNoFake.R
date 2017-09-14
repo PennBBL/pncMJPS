@@ -24,7 +24,7 @@ mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 7
 fakeData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/fakesub_exclude.csv')
 psData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/clinical/n1601_diagnosis_dxpmr_20170509.csv')
 psData[which(psData$goassessDxpmr7=='OP'),] <- "TD"
-demoData <- demoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/demographics/n1601_demographics_go1_20161212.csv')
+demoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/demographics/n1601_demographics_go1_20161212.csv')
 psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
 volData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionVol_20170412.csv')
 gmdData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAtroposIntersectionGMD_20170410.csv')
@@ -48,12 +48,14 @@ strucData <- merge(strucData, mjData, by='bblid')
 strucData <- merge(strucData, psData, by=c('bblid', 'scanid'))
 bblidIndex <- strucData$bblid
 bblidIndex <- bblidIndex[which(bblidIndex%in%fakeData$bblid=='FALSE')]
+strucData <- strucData[-which(strucData$goassessDxpmr7==levels(strucData$goassessDxpmr7)[1]),]
 
 # Now do cbfData
 cbfData <- merge(cbfQAData, cbfData, by=c('bblid', 'scanid'))
 cbfData <- cbfData[which(cbfData$pcaslExclude==0 & cbfData$bblid %in% bblidIndex),]
 cbfData <- merge(cbfData, psData, by=c('bblid', 'scanid'))
 cbfData <- merge(cbfData, mjData, by='bblid')
+cbfData <- cbfData[-which(cbfData$goassessDxpmr7==levels(cbfData$goassessDxpmr7)[1]),]
 
 # Now do dti data
 dtiData <- merge(dtiQAData, trData, by=c('bblid', 'scanid'))
