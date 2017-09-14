@@ -2,6 +2,7 @@ source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 install_load('mgcv', 'voxel')
 
 # Load data
+source('/data/joy/BBL/projects/pncMJPS/scripts/01_dataPrep/scripts/dataPrepNoFake.R')
 cogData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/PS_Cannabis/Marijuana.csv')
 mjData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
 goassessData <- read.csv('/data/joy/BBL/studies/pnc/n9498_dataFreeze/clinical/n9498_diagnosis_dxpmr_20161014.csv')
@@ -17,6 +18,9 @@ mjData$dosage[which(mjData$mjpastyr=="2-3 times a month")] <- 4
 mjData$dosage[which(mjData$mjpastyr=="1-2 times a week")] <- 5
 mjData$dosage[which(mjData$mjpastyr=="3-4 times a week")] <- 6
 
+# Now get the imaging sample
+bblidIndex <- strucData$bblid
+
 # Now create our data frame
 allData <- merge(mjData, cogData, by=intersect(names(mjData), names(cogData)))
 allData <- merge(allData, goassessData, by=intersect(names(allData), names(goassessData)))
@@ -28,6 +32,8 @@ allData$goassessDxpmr6 <- ordered(allData$goassessDxpmr6)
 # Now rm the subjects that have not used any within the last year
 allDataAll <- allData
 allData <- allData[which(allData$dosage>1),]
+allData <- allData[allData$bblid %in% bblidIndex,]
+allData$race <- as.factor(allData$race)
 
 # Now produce non linear effects across sex
 allData <- allData[which(allData$goassessDxpmr6=='TD' | allData$goassessDxpmr6=='PS'),]

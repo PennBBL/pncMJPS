@@ -104,8 +104,39 @@ runMainEffect <- function(dataFrame, grepPattern, qualityIndex){
         formValue <- as.formula(paste(roiName, '~ s(ageAtScan1) + sex + race + marcat + goassessDxpmr7 +', qualityIndex))
         # First run the model
         tmp <- gam(formValue, data=dataFrame)
+        tmp <- anova(tmp)
         # Now grap our interaction terms
-        sigTerms <- summary(tmp)$p.table[4,4]
+        sigTerms <- tmp$pTerms.pv[3]
+        # Now combine the roi witht he p value
+        sigTerms <- c(roiName, sigTerms)
+        # Now export the variables
+        output <- rbind(output, sigTerms)
+    }
+    # Now fix the column names
+    return(output)
+}
+
+runMainEffect2 <- function(dataFrame, grepPattern, qualityIndex){
+    # First find all fo the columns that we will loop through
+    columnIndex <- grep(grepPattern, names(dataFrame))
+    qualityCol <- grep(qualityIndex, names(dataFrame))[1]
+    # Now declare our statics
+    ageCol <- which(names(dataFrame)=='ageAtScan1')
+    sexCol <- which(names(dataFrame)=='sex')
+    mjCol <- which(names(dataFrame)=='marcat')
+    psCol <- which(names(dataFrame)=='goassessDxpmr7')
+    # Declare som values for which will be returned from the gam function
+    output <- NULL
+    # Now loop through each region and run the model
+    for(i in columnIndex){
+        # Get the roi name
+        roiName <- names(dataFrame)[i]
+        formValue <- as.formula(paste(roiName, '~ s(ageAtScan1) + sex + race + marcat + goassessDxpmr7 +', qualityIndex))
+        # First run the model
+        tmp <- gam(formValue, data=dataFrame)
+        tmp <- anova(tmp)
+        # Now grap our interaction terms
+        sigTerms <- tmp$pTerms.pv[4] 
         # Now combine the roi witht he p value
         sigTerms <- c(roiName, sigTerms)
         # Now export the variables
@@ -123,19 +154,51 @@ plotMainEffects <- function(pValueInfo, dataFrame, pdfName, QC, correction=NULL)
   pdf(pdfName)
   for(i in roiNames){
     # First thing we need to do is regress the values
-    formulaValue <- as.formula(paste(i, '~ageAtScan1+ageAtScan1^2+sex+race+goassessDxpmr7+', QC))
+    pValue <- pValueInfo[grep(i, pValueInfo[,1]),2]
+    formulaValue <- as.formula(paste(i, '~s(ageAtScan1)+sex+race+goassessDxpmr7+', QC))
     # Now produce the new values
-    tmpDATA[names(residuals(lm(formulaValue, data=tmpDATA), na.action=na.exclude)),i] <- scale(residuals(lm(formulaValue, data=tmpDATA), na.action=na.exclude), center=T, scale=T)
+    tmpDATA[,i] <- scale(residuals(gam(formulaValue, data=tmpDATA), na.action=na.exclude), center=T, scale=T)
     # Now produce our values
     foo <- summarySE(tmpDATA, measurevar=i, groupvars=c('marcat') , na.rm=T)
     # Now produce the plot
-      barPlotToPrint <- ggplot(foo, aes(x=factor(marcat), y=foo[,4])) + 
+      barPlotToPrint <- ggplot(foo, aes(x=factor(marcat), y=foo[,3])) + 
                            geom_bar(stat="identity", position=position_dodge(), size=.1) + 
-                           geom_errorbar(aes(ymin=foo[,4]-se, ymax=foo[,4]+se), 
+                           geom_errorbar(aes(ymin=foo[,3]-se, ymax=foo[,3]+se), 
                            width = .2, position=position_dodge(.9)) + 
-                           ggtitle(i)
+                           ggtitle(i) +
+ 			   ylab(pValue) + 
+                           xlab('MarCAT') 
+
     print(barPlotToPrint)
   }
   dev.off()
 }
 
+
+plotMainEffects2 <- function(pValueInfo, dataFrame, pdfName, QC, correction=NULL){
+  # Grab the significant ROIs
+  roiNames <- pValueInfo[which(pValueInfo[,2] < .05),1]
+  tmpDATA <- dataFrame
+  # now create the bar graphs
+  pdf(pdfName)
+  for(i in roiNames){
+    # First thing we need to do is regress the values
+    pValue <- pValueInfo[grep(i, pValueInfo[,1]),2]
+    formulaValue <- as.formula(paste(i, '~s(ageAtScan1)+sex+race+marcat+', QC))
+    # Now produce the new values
+    tmpDATA[,i] <- scale(residuals(gam(formulaValue, data=tmpDATA), na.action=na.exclude), center=T, scale=T)
+    # Now produce our values
+    foo <- summarySE(tmpDATA, measurevar=i, groupvars=c('goassessDxpmr7') , na.rm=T)
+    # Now produce the plot
+      barPlotToPrint <- ggplot(foo, aes(x=factor(goassessDxpmr7), y=foo[,3])) + 
+                           geom_bar(stat="identity", position=position_dodge(), size=.1) + 
+                           geom_errorbar(aes(ymin=foo[,3]-se, ymax=foo[,3]+se), 
+                           width = .2, position=position_dodge(.9)) + 
+                           ggtitle(i) +
+ 			   ylab(pValue) + 
+                           xlab('GoassessDxpmr7')
+                           
+    print(barPlotToPrint)
+  }
+  dev.off()
+}

@@ -54,7 +54,6 @@ varsOfInterest <- grep('mprage_jlf_gmd', names(strucData))
 # Now loop through each one and produce a bar graph for it
 strucData$marcat[strucData$marcat=='MJ Frequent User'] <- 'MJ User'
 strucData <- strucData[-which(strucData$marcat==levels(strucData$marcat)[1]),]
-strucData <- strucData[-which(strucData$goassessDxpmr7==levels(strucData$goassessDxpmr7)[1]),]
 pdf('gmdInteractions.pdf')
 for(i in varsOfInterest){
   mainTitle <- names(strucData)[i]
@@ -74,9 +73,7 @@ dev.off()
 # Now do this for where we see signifianct CT interactions
 # This means we will have to find out which CT regions have signifianct interactions
 sigCT <- runGamModel(strucData, 'mprage_jlf_ct', 'averageManualRating')
-sigCT <- sigCT[which(p.adjust(sigCT[,2], method='fdr')<.05),]
-strucData <- strucData[-which(strucData$marcat==levels(strucData$marcat)[1]),]
-strucData <- strucData[-which(strucData$goassessDxpmr7==levels(strucData$goassessDxpmr7)[1]),]
+sigCT <- sigCT[which(sigCT[,2]<.05),]
 pdf('ctInteractions.pdf')
 for(i in sigCT[,1]){
   mainTitle <- i
@@ -97,13 +94,13 @@ dev.off()
 # Now do CBF
 cbfData$marcat[cbfData$marcat=='MJ Frequent User'] <- 'MJ User'
 cbfData <- cbfData[-which(cbfData$marcat==levels(cbfData$marcat)[1]),]
-cbfData <- cbfData[-which(cbfData$goassessDxpmr7==levels(cbfData$goassessDxpmr7)[1]),]
 sigCBF <- runGamModel(cbfData, 'pcasl_jlf_cbf', 'pcaslTSNR')
-sigCBFN <- length(which(p.adjust(sigCBF[,2], method='fdr')<.05))
+sigCBF <- sigCBF[which(sigCBF[,2]<.05),]
+pdf('cbfInteraction.pdf')
 for(i in sigCBF[,1]){
   mainTitle <- i
   formulaValue <- as.formula(paste(mainTitle, '~ageAtScan1+ageAtScan1^2+sex'))
-  cbfData[,i] <- scale(residuals(lm(formulaValue, data=cbfData)))
+  cbfData[rownames(scale(residuals(lm(formulaValue, data=cbfData)))),i] <- scale(residuals(lm(formulaValue, data=cbfData)))
   foo <- summarySE(cbfData, measurevar=mainTitle, groupvars=c('marcat','goassessDxpmr7') , na.rm=T)
   barPlotToPrint <- ggplot(foo, aes(x=factor(marcat), y=foo[,4], fill=goassessDxpmr7)) + 
                            geom_bar(stat="identity", position=position_dodge(), size=.1) + 
@@ -114,6 +111,52 @@ for(i in sigCBF[,1]){
                            #scale_y_continuous(limits=c(4,5.2),oob=rescale_none)
   print(barPlotToPrint) 
 }
+dev.off()
+
+
+# Now onto rest 
+restData$marcat[restData$marcat=='MJ Frequent User'] <- 'MJ User'
+restData <- restData[-which(restData$marcat==levels(restData$marcat)[1]),]
+sigReho <- runGamModel(restData, 'rest_jlf_reho', 'restRelMeanRMSMotion')
+sigReho <- sigReho[which(sigReho[,2]<.05),]
+pdf('rehoInteractions.pdf')
+for(i in sigReho[1]){
+  mainTitle <- i
+  formulaValue <- as.formula(paste(mainTitle, '~ageAtScan1+ageAtScan1^2+sex'))
+  restData[rownames(scale(residuals(lm(formulaValue, data=restData)))),i] <- scale(residuals(lm(formulaValue, data=restData)))
+  foo <- summarySE(restData, measurevar=mainTitle, groupvars=c('marcat','goassessDxpmr7') , na.rm=T)
+  barPlotToPrint <- ggplot(foo, aes(x=factor(marcat), y=foo[,4], fill=goassessDxpmr7)) + 
+                           geom_bar(stat="identity", position=position_dodge(), size=.1) + 
+                           geom_errorbar(aes(ymin=foo[,4]-se, ymax=foo[,4]+se), 
+                           width = .2, position=position_dodge(.9)) + 
+                           ggtitle(mainTitle) +
+                           ylab('Mean CT Value')#+ 
+                           #scale_y_continuous(limits=c(4,5.2),oob=rescale_none)
+  print(barPlotToPrint) 
+}
+dev.off()
+
+sigAlff <- runGamModel(restData, 'rest_jlf_alff', 'restRelMeanRMSMotion')
+sigAlff <- sigAlff[which(sigAlff[,2]<.05),]
+pdf('alffInteractions.pdf')
+for(i in sigAlff[1]){
+  mainTitle <- i
+  formulaValue <- as.formula(paste(mainTitle, '~ageAtScan1+ageAtScan1^2+sex'))
+  restData[rownames(scale(residuals(lm(formulaValue, data=restData)))),i] <- scale(residuals(lm(formulaValue, data=restData)))
+  foo <- summarySE(restData, measurevar=mainTitle, groupvars=c('marcat','goassessDxpmr7') , na.rm=T)
+  barPlotToPrint <- ggplot(foo, aes(x=factor(marcat), y=foo[,4], fill=goassessDxpmr7)) + 
+                           geom_bar(stat="identity", position=position_dodge(), size=.1) + 
+                           geom_errorbar(aes(ymin=foo[,4]-se, ymax=foo[,4]+se), 
+                           width = .2, position=position_dodge(.9)) + 
+                           ggtitle(mainTitle) +
+                           ylab('Mean ALFF Value')#+ 
+                           #scale_y_continuous(limits=c(4,5.2),oob=rescale_none)
+  print(barPlotToPrint) 
+}
+dev.off()
+
+
+
 
 # Now produce our figures for stathis regions
 # First find the regions with nominally sig interactions
