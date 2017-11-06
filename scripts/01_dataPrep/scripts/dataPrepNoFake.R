@@ -29,6 +29,7 @@ psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
 volData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionVol_20170412.csv')
 gmdData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAtroposIntersectionGMD_20170410.csv')
 ctData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionCT_20170331.csv')
+ccData <- read.csv('/data/joy/BBL/studies/pnc/n2416_dataFreeze/neuroimaging/t1struct/n2416_jlfAntsCTIntersectionCortCon_20170814.csv')
 t1QAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_t1QaData_20170306.csv')
 cbfData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/asl/n1601_jlfAntsCTIntersectionPcaslValues_20170403.csv')
 cbfQAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/asl/n1601_PcaslQaData_20170403.csv')
@@ -43,6 +44,7 @@ restQAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/
 strucData <- merge(volData, gmdData, by=c('bblid', 'scanid'))
 strucData <- merge(strucData, ctData, by=c('bblid', 'scanid'))
 strucData <- merge(strucData, t1QAData, by=c('bblid', 'scanid'))
+strucData <- merge(strucData, ccData)
 strucData <- strucData[which(strucData$averageManualRating!=0),]
 strucData <- merge(strucData, mjData, by='bblid')
 strucData <- merge(strucData, psData, by=c('bblid', 'scanid'))
@@ -88,7 +90,7 @@ stathCT[,2] <- strSplitMatrixReturn(charactersToSplit=stathCT[,2] ,'x')[,2]
 stathCT <- merge(stathCT, mjData, by='bblid')
 stathCT <- merge(stathCT, t1QAData, by=c('bblid', 'scanid'))
 stathCT <- merge(stathCT, psData, by=c('bblid', 'scanid'))
-stathCT <- stathParc[which(stathCT$averageManualRating!=0),]
+stathCT <- stathCT[which(stathCT$averageManualRating!=0),]
 
 # Now rm all variables we won't need
 rm(mjData, volData, gmdData, ctData, t1QAData, cbfQAData, trData, dtiQAData, alffData, rehoData, restQAData)
