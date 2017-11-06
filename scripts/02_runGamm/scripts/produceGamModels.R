@@ -41,6 +41,20 @@ sigGMD <- runMainEffect(strucData, 'mprage_jlf_gmd', 'averageManualRating')
 sigGMDN <- length(which(p.adjust(sigGMD[,2], method='fdr')<.05))
 plotMainEffects(pValueInfo=sigGMD, dataFrame=strucData, pdfName='gmdMainMarcatFrequent.pdf', QC='averageManualRating')
 
+# Now do stath parcellation
+stathCT$marcat[stathCT$marcat=="MJ Frequent User"] <- "MJ User"
+stathCT <- stathCT[-which(stathCT$dosage==1),]
+stathCT <- stathCT[-which(stathCT$marcat==levels(stathCT$marcat)[1]),]
+sigStathCT <- runMainEffect(stathCT, 'NZMean_', 'averageManualRating')
+plotMainEffects(pValueInfo=sigStathCT, dataFrame=stathCT, pdfName='stathCTMainEffectWithinYear.pdf', QC='averageManualRating')
+# Now gmd
+stathParc$marcat[stathParc$marcat=="MJ Frequent User"] <- "MJ User"
+stathParc <- stathParc[-which(stathParc$dosage==1),]
+stathParc <- stathParc[-which(stathParc$marcat==levels(stathParc$marcat)[1]),]
+sigStathParc <- runMainEffect(stathParc, 'NZMean_', 'averageManualRating')
+plotMainEffects(pValueInfo=sigStathParc, dataFrame=stathParc, pdfName='stathGmdMainEffectWithinYear.pdf', QC='averageManualRating')
+sigStathParcN <- length(which(p.adjust(sigStathParc[,2], method='fdr')<.05))
+
 # Now run CBF
 CbfDataFreeze <- cbfData
 cbfData <- cbfData[-which(cbfData$dosage==1),]
