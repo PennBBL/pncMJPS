@@ -48,14 +48,22 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 # Now load the data
 source('/data/joy/BBL/projects/pncMJPS/scripts/01_dataPrep/scripts/dataPrepNoFake.R')
+# Now limit to only frequent users
+strucData <- strucData[-which(strucData$dosage==2 |strucData$dosage==3 | strucData$dosage==4),]
+cbfData <- cbfData[-which(cbfData$dosage==2 |cbfData$dosage==3 | cbfData$dosage==4),]
+restData <- restData[-which(restData$dosage==2 |restData$dosage==3 | restData$dosage==4),]
+stathParc <- stathParc[-which(stathParc$dosage==2 |stathParc$dosage==3 | stathParc$dosage==4),]
+stathCT <- stathCT[-which(stathCT$dosage==2 | stathCT$dosage==3 | stathCT$dosage==4),]
+
+# Now produce the bar graphs for all nominally sig GMD ROI's
 
 # Now loop through each one and produce a bar graph for it
 strucData$marcat[strucData$marcat=='MJ Frequent User'] <- 'MJ User'
 strucData <- strucData[-which(strucData$marcat==levels(strucData$marcat)[1]),]
 sigGMD <- runGamModel(strucData, 'mprage_jlf_gmd', 'averageManualRating')
-sigGMD <- sigGMD[which(sigGMD[,2] < .05),]
-#pdf('gmdInteractions.pdf')
-#for(i in sigGMD){
+sigGMD <- sigGMD[which(sigGMD[,2]<.05),]
+#pdf('gmdInteractionsFreq.pdf')
+#for(i in varsOfInterest){
 #  mainTitle <- names(strucData)[i]
 #  formulaValue <- as.formula(paste(mainTitle, '~ageAtScan1+ageAtScan1^2+sex'))
 #  strucData[,i] <- scale(residuals(lm(formulaValue, data=strucData)))
