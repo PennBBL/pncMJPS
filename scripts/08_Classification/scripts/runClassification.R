@@ -1,6 +1,6 @@
 ## Load library(s)
 source("/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R")
-install_load('gbm', 'adabag', 'randomForest')
+install_load('gbm', 'adabag', 'randomForest', 'caret', 'gbm', 'pROC')
 
 ## Load the data - this has to be age regressed data
 vol.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/volumeData.csv')
@@ -9,7 +9,8 @@ cc.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/ccData
 gmd.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/gmdData.csv')
 reho.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/rehoData.csv')
 alff.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/alffData.csv')
-tr.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/alffData.csv')
+tr.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/jlfTRData.csv')
+fa.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/jhuFALabel.csv')
 
 # Now grab the MJ data 
 mjData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
@@ -32,6 +33,7 @@ all.data <- merge(all.data, gmd.data)
 all.data <- merge(all.data, reho.data)
 all.data <- merge(all.data, alff.data)
 all.data <- merge(all.data, tr.data)
+all.data <- merge(all.data, fa.data)
 all.data <- merge(all.data, mjData)
 
 # Now apply exclusions
@@ -50,7 +52,74 @@ dataAll <- all.data.male[,grep('_jlf_', names(all.data.male))]
 dataAll <- cbind(outcome, dataAll)
 rm(outcome)
 dataAll$outcome <- as.factor(dataAll$outcome)
+# Now create a train test index
+index <- createFolds(dataAll$outcome, k=5, returnTrain=T, list=T)[[1]]
 
-boosting.cv(outcome ~ ., data=dataAll, control=rpart.control(maxdepth=5, minsplit=15))
+#boosting.cv(outcome ~ ., data=dataAll, control=rpart.control(maxdepth=5, minsplit=15,distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001,))
 
-boosting(outcome ~ ., data=dataAll, control=rpart.control(maxdepth=5, minsplit=15))
+#tmp <- boosting(outcome ~ ., data=dataAll[index,], control=rpart.control(maxdepth=5, minsplit=15))
+
+dataAll$outcome <- as.character(dataAll$outcome)
+tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001, data=dataAll[index,],cv.folds=10)
+plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=85, type='response'))) 
+plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=85, type='response', newdata=dataAll[-index,]))) 
+
+# Now I need to get the relative imporantce values
+relImp <- relative.influence(tmp, n.trees=100)
+toCheck <- which(relImp!=0)
+relImp <- relImp[toCheck]
+relImp <- relImp[order(relImp)]
+# Now go through each of these and plot the difference 
+pdf('varImp.pdf')
+for(i in names(relImp)){
+  sumVal <- summarySE(data=dataAll, groupvars='outcome', measurevar=i)
+  # Now make the ggplot value
+  bg1 <- ggplot(sumVal, aes(x=outcome, y=sumVal[,3], group=outcome)) +
+    geom_bar(stat='identity',position=position_dodge(), width=.5) +
+    labs(title=i)+ 
+    geom_errorbar(aes(ymin=as.numeric(as.character(sumVal[,3]))-se, 
+      ymax=as.numeric(as.character(sumVal[,3]))+se), 
+      width = .1, position=position_dodge(.9))
+  print(bg1)
+}
+plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=100, type='response'))) 
+plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=100, type='response', newdata=dataAll[-index,]))) 
+dev.off()
+
+
+# Now do this all in never vs frequent
+dataAll <- dataAll[which(all.data.male$dosage == 0 | all.data.male$dosage > 4),]
+index <- createFolds(dataAll$outcome, k=5, returnTrain=T, list=T)[[1]]
+
+dataAll$outcome <- as.character(dataAll$outcome)
+tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001, data=dataAll[index,])
+plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=100, type='response'))) 
+plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=100, type='response', newdata=dataAll[-index,]))) 
+
+# Now I need to get the relative imporantce values
+relImp <- relative.influence(tmp, n.trees=100)
+toCheck <- which(relImp!=0)
+relImp <- relImp[toCheck]
+relImp <- relImp[order(relImp)]
+# Now go through each of these and plot the difference 
+pdf('varImpF.pdf')
+for(i in names(relImp)){
+  sumVal <- summarySE(data=dataAll, groupvars='outcome', measurevar=i)
+  # Now make the ggplot value
+  bg1 <- ggplot(sumVal, aes(x=outcome, y=sumVal[,3], group=outcome)) +
+    geom_bar(stat='identity',position=position_dodge(), width=.5) +
+    labs(title=i)+ 
+    geom_errorbar(aes(ymin=as.numeric(as.character(sumVal[,3]))-se, 
+      ymax=as.numeric(as.character(sumVal[,3]))+se), 
+      width = .1, position=position_dodge(.9))
+  print(bg1)
+}
+plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=100, type='response'))) 
+plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=100, type='response', newdata=dataAll[-index,]))) 
+dev.off()
+
+# Now do frequent vs non frequent
+dataAll <- all.data.male[,grep('_jlf_', names(all.data.male))]
+dataAll <- cbind(outcome, dataAll)
+dataAll <- dataAll[which(all.data.male$dosage>1)]
+
