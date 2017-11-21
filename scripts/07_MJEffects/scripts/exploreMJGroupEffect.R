@@ -85,8 +85,18 @@ for(c in sigAlffN[,1]){
 colnames(outAll) <- names(restData)[279:304]
 outAllALFF <- outAll
 
+# Now do TR
+sigTR <- runGamModelG(dtiData, 'dti_jlf_tr_', 'dti64Tsnr')
+sigTRN <- sigTR[which(sigTR[,2]<.05),]
+
+# Now do FA
+sigFA <- runGamModelG(faData, 'dti_dtitk_jhutract_fa', 'dti64Tsnr')
+sigFA <- rbind(sigFA, runGamModelG(faData, 'dti_jlf_fa_', 'dti64Tsnr'))
+sigFAN <- sigFA[which(sigFA[,2]<.05),] 
+
+
 # Now write the output
-output <- rbind(sigVolN, sigCTN, sigGMDN, sigCBFN, sigRehoN, sigAlffN)
+output <- rbind(sigVolN, sigCTN, sigGMDN, sigCBFN, sigRehoN, sigAlffN, sigTRN, sigFAN)
 write.csv(output, 'nomSigValsGroup.csv', quote=F, row.names=F)
 
 output <- rbind(outAllCT, outAllCBF, outAllREHO, outAllALFF)

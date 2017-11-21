@@ -13,9 +13,8 @@ restData <- merge(restData, cogValues, by='bblid')
 strucData <- strucData[-which(strucData$dosage==2 |strucData$dosage==3 | strucData$dosage==4),]
 cbfData <- cbfData[-which(cbfData$dosage==2 |cbfData$dosage==3 | cbfData$dosage==4),]
 restData <- restData[-which(restData$dosage==2 |restData$dosage==3 | restData$dosage==4),]
-stathParc <- stathParc[-which(stathParc$dosage==2 |stathParc$dosage==3 | stathParc$dosage==4),]
-stathCT <- stathCT[-which(stathCT$dosage==2 | stathCT$dosage==3 | stathCT$dosage==4),]
-
+dtiData <- dtiData[-which(dtiData$dosage==2 | dtiData$dosage==3 | dtiData$dosage==4),]
+faData <- faData[-which(faData$dosage==2 | faData$dosage==3 | faData$dosage==4),]
 
 # Now run the gam's for the structural data 
 # Collapse all fo the Users into MJ User bin for marcat 
@@ -54,18 +53,6 @@ cbfData <- cbfData[-which(cbfData$marcat==levels(cbfData$marcat)[1]),]
 sigCBF <- runGamModelG(cbfData, 'pcasl_jlf_cbf', 'pcaslTSNR')
 sigCBFN <- sigCBF[which(sigCBF[,2]<.05),]
 
-outAll <- NULL
-for(c in sigCBFN[1]){
-  outC <- NULL
-  for(corVal in 164:189){
-    corStat <- cor(cbfData[c], cbfData[,corVal], use='complete')
-    print(corStat)
-    outC <- cbind(outC, corStat)
-  }
-  outAll <- rbind(outAll, outC)
-}
-colnames(outAll) <- names(cbfData)[164:189]
-outAllCBF <- outAll
 
 # Now do rest
 RestDataFreeze <- restData
@@ -105,9 +92,18 @@ for(c in sigAlffN[,1]){
 colnames(outAll) <- names(restData)[279:304]
 outAllALFF <- outAll
 
+# Now do TR
+sigTR <- runGamModelG(dtiData, 'dti_jlf_tr_', 'dti64Tsnr')
+sigTRN <- sigTR[which(sigTR[,2]<.05),]
+
+# Now do FA
+sigFA <- runGamModelG(faData, 'dti_dtitk_jhutract_fa', 'dti64Tsnr')
+sigFA <- rbind(sigFA, runGamModelG(faData, 'dti_jlf_fa_', 'dti64Tsnr'))
+sigFAN <- sigFA[which(sigFA[,2]<.05),] 
+
 # Now write the output
-output <- rbind(sigVolN, sigCTN, sigGMDN, sigCBFN, sigRehoN, sigAlffN)
-write.csv(output, 'nomSigValsGroup.csv', quote=F, row.names=F)
+output <- rbind(sigVolN, sigCTN, sigGMDN, sigCBFN, sigRehoN, sigAlffN, sigTRN, sigFAN)
+write.csv(output, 'nomSigValsGroupF.csv', quote=F, row.names=F)
 
 output <- rbind(outAllCT, outAllCBF, outAllREHO, outAllALFF)
 write.csv(output, 'corValsFromNomSig.csv', quote=F, row.names=T)
