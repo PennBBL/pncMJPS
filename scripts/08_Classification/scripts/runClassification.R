@@ -55,14 +55,21 @@ dataAll$outcome <- as.factor(dataAll$outcome)
 # Now create a train test index
 index <- createFolds(dataAll$outcome, k=5, returnTrain=T, list=T)[[1]]
 
-#boosting.cv(outcome ~ ., data=dataAll, control=rpart.control(maxdepth=5, minsplit=15,distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001,))
-
-#tmp <- boosting(outcome ~ ., data=dataAll[index,], control=rpart.control(maxdepth=5, minsplit=15))
+f# Now train the hyperparameters in the training dataset
+fitControl <- trainControl(method='cv', number=5)
+gbmGrid <- expand.grid(interaction.depth=c(1, 2, 3),
+  n.trees=seq(1,100,5), 
+  shrinkage=0.001, 
+  n.minobsinnode=20)
+set.seed(16)
+gbmFit1 <- train(outcome~., data=dataAll[index,], distribution='bernoulli', method='gbm', trControl=fitControl, tuneGrid=gbmGrid)
 
 dataAll$outcome <- as.character(dataAll$outcome)
-tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001, data=dataAll[index,],cv.folds=10)
-plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=85, type='response'))) 
-plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=85, type='response', newdata=dataAll[-index,]))) 
+tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=20, shrinkage=0.001, data=dataAll[index,],cv.folds=5, interaction.depth=1)
+plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=4, type='response'))) 
+auc(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=4, type='response'))) 
+plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=4, type='response', newdata=dataAll[-index,])))
+auc(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=20, type='response', newdata=dataAll[-index,])))
 
 # Now I need to get the relative imporantce values
 relImp <- relative.influence(tmp, n.trees=100)
@@ -86,18 +93,28 @@ plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=100, type='response')))
 plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=100, type='response', newdata=dataAll[-index,]))) 
 dev.off()
 
-
 # Now do this all in never vs frequent
 dataAll <- dataAll[which(all.data.male$dosage == 0 | all.data.male$dosage > 4),]
 index <- createFolds(dataAll$outcome, k=5, returnTrain=T, list=T)[[1]]
 
 dataAll$outcome <- as.character(dataAll$outcome)
-tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001, data=dataAll[index,])
-plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=100, type='response'))) 
-plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=100, type='response', newdata=dataAll[-index,]))) 
+fitControl <- trainControl(method='repeatedcv', number=5, repeats=5)
+gbmGrid <- expand.grid(interaction.depth=c(1, 2, 3),
+  n.trees=(1:30)*10, 
+  shrinkage=0.001, 
+  n.minobsinnode=18)
+set.seed(16)
+#gbmFit1 <- train(outcome~., data=dataAll[index,], method='gbm', trControl=fitControl, tuneGrid=gbmGrid)
+
+tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001, data=dataAll[index,], cv.folds=10)
+treeVal <- gbm.perf(tmp)
+plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=65, type='response')))
+auc(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=65, type='response'))) 
+plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=65, type='response', newdata=dataAll[-index,]))) 
+auc(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=65, type='response', newdata=dataAll[-index,]))) 
 
 # Now I need to get the relative imporantce values
-relImp <- relative.influence(tmp, n.trees=100)
+relImp <- relative.influence(tmp, n.trees=65)
 toCheck <- which(relImp!=0)
 relImp <- relImp[toCheck]
 relImp <- relImp[order(relImp)]
@@ -117,9 +134,3 @@ for(i in names(relImp)){
 plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=100, type='response'))) 
 plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=100, type='response', newdata=dataAll[-index,]))) 
 dev.off()
-
-# Now do frequent vs non frequent
-dataAll <- all.data.male[,grep('_jlf_', names(all.data.male))]
-dataAll <- cbind(outcome, dataAll)
-dataAll <- dataAll[which(all.data.male$dosage>1)]
-
