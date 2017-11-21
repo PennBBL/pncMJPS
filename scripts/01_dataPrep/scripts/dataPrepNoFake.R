@@ -34,10 +34,17 @@ t1QAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1
 cbfData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/asl/n1601_jlfAntsCTIntersectionPcaslValues_20170403.csv')
 cbfQAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/asl/n1601_PcaslQaData_20170403.csv')
 trData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_jlfTRValues_20170411.csv')
+trData2 <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_jlfWmLobesTRValues_20170405.csv')
+trData <- merge(trData, trData2)
+rm(trData2)
 dtiQAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_dti_qa_20170301.csv')
 alffData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/rest/n1601_jlfALFFValues_20170714.csv')
 rehoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/rest/n1601_jlfReHoValues_20170714.csv')
 restQAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/rest/n1601_RestQAData_20170714.csv')
+faData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_JHUTractFA_20170321.csv')
+faData2 <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_jlfWmLobesFAValues_20170405.csv')
+faData <- merge(faData, faData2)
+rm(faData2)
 
 ## Now apply all restrictions 
 #Start with struc
@@ -65,6 +72,12 @@ dtiData <- dtiData[which(dtiData$dti64Exclude!=1),]
 dtiData <- merge(dtiData, mjData, by='bblid')
 dtiData <- merge(dtiData, psData, by=c('bblid', 'scanid'))
 
+# Now do FA data
+faData <- merge(dtiQAData, faData)
+faData <- faData[which(faData$dti64Exclude!=1),]
+faData <- merge(faData, mjData)
+faData <- merge(faData, psData)
+
 # Now do the rest data
 restData <- merge(alffData, rehoData, by=c('bblid', 'scanid'))
 restData <- merge(restQAData, restData, by=c('bblid', 'scanid'))
@@ -72,27 +85,5 @@ restData <- restData[which(restData$restExclude==0 & restData$bblid %in% bblidIn
 restData <- merge(restData, mjData, by='bblid')
 restData <- merge(restData, psData, by=c('bblid', 'scanid'))
 
-# Now do the stathis parcellation
-stathParc <- read.table('/data/joy/BBL/projects/pncMJPS/data/test.1D', header=T)
-n1601.subjs <- read.csv('/data/joy/BBL/projects/pncReproc2015/antsCT/n1601_bblid_scanid_dateid.csv')
-n1601.subjs <- n1601.subjs[,c(2,1)]
-colnames(stathParc)[1:2] <- c('bblid', 'scanid')
-stathParc[,2] <- strSplitMatrixReturn(charactersToSplit=stathParc[,2] ,'x')[,2]
-stathParc <- merge(stathParc, mjData, by='bblid')
-stathParc <- merge(stathParc, t1QAData, by=c('bblid', 'scanid'))
-stathParc <- merge(stathParc, psData, by=c('bblid', 'scanid'))
-stathParc <- stathParc[which(stathParc$averageManualRating!=0),]
-
-# NOw do stathis parc CT
-stathCT <- read.table('/data/joy/BBL/projects/pncMJPS/data/stathCTVals.1D', header=T)
-colnames(stathCT)[1:2] <- c('bblid', 'scanid')
-stathCT[,2] <- strSplitMatrixReturn(charactersToSplit=stathCT[,2] ,'x')[,2]
-stathCT <- merge(stathCT, mjData, by='bblid')
-stathCT <- merge(stathCT, t1QAData, by=c('bblid', 'scanid'))
-stathCT <- merge(stathCT, psData, by=c('bblid', 'scanid'))
-stathCT <- stathCT[which(stathCT$averageManualRating!=0),]
-
 # Now rm all variables we won't need
 rm(mjData, volData, gmdData, ctData, t1QAData, cbfQAData, trData, dtiQAData, alffData, rehoData, restQAData)
-
-
