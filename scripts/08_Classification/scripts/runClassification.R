@@ -1,12 +1,13 @@
 ## Load library(s)
 source("/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R")
-install_load('gbm', 'adabag', 'randomForest', 'caret', 'gbm', 'pROC')
+install_load('gbm', 'adabag', 'randomForest', 'caret', 'gbm', 'pROC', 'doMC', 'plyr')
 
 ## Load the data - this has to be age regressed data
 vol.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/volumeData.csv')
 ct.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/ctData.csv')
 cc.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/ccData.csv')
 gmd.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/gmdData.csv')
+cbf.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/cbfData.csv')
 reho.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/rehoData.csv')
 alff.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/alffData.csv')
 tr.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/jlfTRData.csv')
@@ -30,6 +31,7 @@ fakeData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/fakesub_exclude.csv')
 all.data <- merge(vol.data, ct.data)
 all.data <- merge(all.data, cc.data)
 all.data <- merge(all.data, gmd.data)
+all.data <- merge(all.data, cbf.data)
 all.data <- merge(all.data, reho.data)
 all.data <- merge(all.data, alff.data)
 all.data <- merge(all.data, tr.data)
@@ -53,23 +55,28 @@ dataAll <- cbind(outcome, dataAll)
 rm(outcome)
 dataAll$outcome <- as.factor(dataAll$outcome)
 # Now create a train test index
-index <- createFolds(dataAll$outcome, k=5, returnTrain=T, list=T)[[1]]
-
-f# Now train the hyperparameters in the training dataset
-fitControl <- trainControl(method='cv', number=5)
-gbmGrid <- expand.grid(interaction.depth=c(1, 2, 3),
-  n.trees=seq(1,100,5), 
-  shrinkage=0.001, 
-  n.minobsinnode=20)
+index <- createFolds(dataAll$outcome, k=3, returnTrain=T, list=T)
+tree1 <- train(y=dataAll$outcome[index[[1]]], x=dataAll[index[[1]],-1], method='rpart', tuneLength=20, metric="ROC", trControl = fitControl)
+treeTest <- rpart(outcome ~ ., data=dataAll[index[[1]],], method='anova', control=rpart.control(minsplit=20,minbucket=15))
+# Now train the hyperparameters in the training dataset
+fitControl <- trainControl(method='repeatedcv', number=3, repeats=3, classProbs=T, summaryFunction=twoClassSummary)
+#gbmGrid <- expand.grid(interaction.depth = (1:5) * 2, n.trees = (1:10)*25, shrinkage = c(.1, .001), n.minobsinnode=c(10, 15, 18, 20))
 set.seed(16)
-gbmFit1 <- train(outcome~., data=dataAll[index,], distribution='bernoulli', method='gbm', trControl=fitControl, tuneGrid=gbmGrid)
-
+#gbmFit1 <- train(outcome~., data=dataAll[index,], distribution='bernoulli', method='gbm', trControl=fitControl, tuneGrid=gbmGrid)
+#dataAll$outcome <- factor(dataAll$outcome)
+#dataAll$outcome <- revalue(dataAll$outcome, c('0'='NotUse', '1'='User'))
+#registerDoMC(cores = 3)
+#gbmFit1 <- train(outcome~., data=dataAll, distribution='bernoulli', method='gbm', trControl=fitControl, tuneGrid=gbmGrid,metric="Kappa")
+outPredVals <- rep(NA, dim(dataAll)[1])
+for(i in 1:3){
+  # First train a model
+  tmp <- gbm(outcome ~ ., distribution='bernoulli', n.trees=75, n.minobsinnode=18, shrinkage=.01, data=dataAll[index[[i]],], cv.folds=3, interaction.depth=2)
+  # Now predict in the left out
+  outPredVals[-index[[i]]] <- predict(tmp, n.trees=50, newdata=dataAll[-index[[i]],], type='response')
+}
 dataAll$outcome <- as.character(dataAll$outcome)
-tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=20, shrinkage=0.001, data=dataAll[index,],cv.folds=5, interaction.depth=1)
-plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=4, type='response'))) 
-auc(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=4, type='response'))) 
-plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=4, type='response', newdata=dataAll[-index,])))
-auc(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=20, type='response', newdata=dataAll[-index,])))
+dataAll$outcome <- revalue(dataAll$outcome, c('NotUse'='0', 'User'='1'))
+tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001, data=dataAll[index[[1]],],cv.folds=10, interaction.depth=3)
 
 # Now I need to get the relative imporantce values
 relImp <- relative.influence(tmp, n.trees=100)
@@ -90,21 +97,19 @@ for(i in names(relImp)){
   print(bg1)
 }
 plot(roc(dataAll$outcome[index] ~ predict(tmp, n.trees=100, type='response'))) 
-plot(roc(dataAll$outcome[-index] ~ predict(tmp, n.trees=100, type='response', newdata=dataAll[-index,]))) 
+plot(roc(dataAll$outcome[-index[[1]]] ~ predict(tmp, n.trees=81, type='response', newdata=dataAll[-index[[1]],]))) 
 dev.off()
 
 # Now do this all in never vs frequent
-dataAll <- dataAll[which(all.data.male$dosage == 0 | all.data.male$dosage > 4),]
+dataAll <- dataAll[which(all.data.male$dosage == 0 | all.data.male$dosage > 5),]
 index <- createFolds(dataAll$outcome, k=5, returnTrain=T, list=T)[[1]]
 
 dataAll$outcome <- as.character(dataAll$outcome)
-fitControl <- trainControl(method='repeatedcv', number=5, repeats=5)
-gbmGrid <- expand.grid(interaction.depth=c(1, 2, 3),
-  n.trees=(1:30)*10, 
-  shrinkage=0.001, 
-  n.minobsinnode=18)
+fitControl <- trainControl(method='repeatedcv', number=3, repeats=3, classProbs=T, summaryFunction=twoClassSummary)
+gbmGrid <- expand.grid(interaction.depth = (1:5) * 2, n.trees = (1:10)*25, shrinkage = c(.1, .001), n.minobsinnode=c(10, 15, 18, 20))
 set.seed(16)
-#gbmFit1 <- train(outcome~., data=dataAll[index,], method='gbm', trControl=fitControl, tuneGrid=gbmGrid)
+dataAll$outcome <- revalue(dataAll$outcome, c('NotUse'='0', 'User'='1'))
+gbmFit1 <- train(outcome~., data=dataAll[index,], method='gbm', trControl=fitControl, tuneGrid=gbmGrid)
 
 tmp <- gbm(outcome ~ ., distribution = 'bernoulli', n.trees=100, n.minobsinnode=18, shrinkage=0.001, data=dataAll[index,], cv.folds=10)
 treeVal <- gbm.perf(tmp)
