@@ -1,6 +1,6 @@
 ## Load library(s)
 source("/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R")
-install_load('gbm', 'adabag', 'randomForest', 'caret', 'gbm', 'pROC', 'doMC', 'plyr')
+install_load('gbm', 'adabag', 'randomForest', 'caret', 'gbm', 'pROC', 'doMC', 'plyr', 'doMC')
 
 ## Load the data - this has to be age regressed data
 vol.data <- read.csv('/data/joy/BBL/projects/pncMJPS/data/ageRegressedData/volumeData.csv')
@@ -54,23 +54,24 @@ dataAll <- all.data.male[,grep('_jlf_', names(all.data.male))]
 dataAll <- cbind(outcome, dataAll)
 rm(outcome)
 dataAll$outcome <- as.factor(dataAll$outcome)
+dataAll$outcome <- revalue(dataAll$outcome, c('0'='NotUse', '1'='User'))
 # Now create a train test index
 index <- createFolds(dataAll$outcome, k=3, returnTrain=T, list=T)
-tree1 <- train(y=dataAll$outcome[index[[1]]], x=dataAll[index[[1]],-1], method='rpart', tuneLength=20, metric="ROC", trControl = fitControl)
-treeTest <- rpart(outcome ~ ., data=dataAll[index[[1]],], method='anova', control=rpart.control(minsplit=20,minbucket=15))
-# Now train the hyperparameters in the training dataset
-fitControl <- trainControl(method='repeatedcv', number=3, repeats=3, classProbs=T, summaryFunction=twoClassSummary)
-#gbmGrid <- expand.grid(interaction.depth = (1:5) * 2, n.trees = (1:10)*25, shrinkage = c(.1, .001), n.minobsinnode=c(10, 15, 18, 20))
-set.seed(16)
-#gbmFit1 <- train(outcome~., data=dataAll[index,], distribution='bernoulli', method='gbm', trControl=fitControl, tuneGrid=gbmGrid)
-#dataAll$outcome <- factor(dataAll$outcome)
-#dataAll$outcome <- revalue(dataAll$outcome, c('0'='NotUse', '1'='User'))
-#registerDoMC(cores = 3)
-#gbmFit1 <- train(outcome~., data=dataAll, distribution='bernoulli', method='gbm', trControl=fitControl, tuneGrid=gbmGrid,metric="Kappa")
+fitControl <- trainControl(method = "repeatedcv",
+                           repeats = 5,
+                           classProbs = TRUE,
+                           summaryFunction = twoClassSummary, 
+		           search="random")
+gridVal <- data.frame(mtry=c(1:15))
+registerDoMC(cores=3)
+tree1 <- train(y=dataAll$outcome[index[[1]]], x=dataAll[index[[1]],-1],method='rf',metric="ROC",trControl=fitControl,verbose=T,ntree=1000, tuneGrid=gridVal)
+
+
+
 outPredVals <- rep(NA, dim(dataAll)[1])
 for(i in 1:3){
   # First train a model
-  tmp <- gbm(outcome ~ ., distribution='bernoulli', n.trees=75, n.minobsinnode=18, shrinkage=.01, data=dataAll[index[[i]],], cv.folds=3, interaction.depth=2)
+  tmp <- gbm(outcome ~ ., distribution='bernoulli', n.trees=75, n.minobsinnode=18, shrinkage=.1, data=dataAll[index[[i]],], cv.folds=3, interaction.depth=2)
   # Now predict in the left out
   outPredVals[-index[[i]]] <- predict(tmp, n.trees=50, newdata=dataAll[-index[[i]],], type='response')
 }
