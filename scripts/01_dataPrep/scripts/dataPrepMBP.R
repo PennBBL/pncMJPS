@@ -48,6 +48,10 @@ female.data <- all.data[which(all.data$sex==2),]
 male.data$usageBin <- 0
 male.data$usageBin[male.data$dosage>1] <- 1
 
+# Now match up our
+mod <- matchit(usageBin ~ ageAtGo1Scan + envSES, data=male.data, ratio=1, na.action=na.omit)
+
+
 # Now run through every colume and give us a t value for every JLF region
 tValsMaleOut <- NULL
 colVals <- grep('_jlf_', names(male.data))
@@ -81,7 +85,7 @@ foobarPos <- foobar[which(foobar$V2.x>0),]
 foobarNeg <- foobar[which(foobar$V2.x<0),]
 
 # Now plot these values in a scatter plot
-outPlot <- ggplot(foobarPos, aes(x=V2.y, y=V2.x)) +
+outPlot <- ggplot(foobarNeg, aes(x=V2.y, y=V2.x)) +
   geom_point() +
   geom_smooth(method=lm) +
   geom_label_repel(aes(label=V1,size=2)) +#,box.padding=unit(1,"lines"),point.padding=unit(1,"lines")) +
@@ -135,7 +139,7 @@ buildStepROCModel <- function(x, y, nStep=50, varAdd=1){
     initRow <- c(0, modName, aucInit, 0)
     outputData <- rbind(outputData, initRow)
     # Now begin the building process
-    for(q in 1:length(valsToLoop)){
+    for(q in 1:6){
       # Initialize some variables
       aucVal <- NULL
       for(z in valsToLoop){
@@ -144,22 +148,24 @@ buildStepROCModel <- function(x, y, nStep=50, varAdd=1){
           colValNew <- append(colVal, z)
           tmpPredVals <- rep(NA, length(y))
           tmpMod <- glm(y ~ as.matrix(x[,colValNew]), family=binomial())
-          tmpPredVals[as.numeric(names(predict(tmpMod)))] <- predict(tmpMod)
-          aucVal <- append(aucVal, auc(roc(y ~ tmpPredVals)))
+          tmpPredVals[as.numeric(names(predict(tmpMod)))] <- predict(tmpMod, type='response')
+          aucVal <- append(aucVal, pROC::auc(roc(y ~ tmpPredVals)))
       }
       # Now grab the best performing model and output the model, performance metric, and
       # the difference in model performance compared to the previous iteration
       # then repeat
       oldPred <- rep(NA, length(y))
       newPred <- rep(NA, length(y))
-      colVal <- append(colVal, which(floor(rank(aucVal))>=1 & floor(rank(aucVal))<=varAdd))
+      colVal <- append(unique(colVal), which(floor(rank(aucVal))>=1 & floor(rank(aucVal))<=varAdd))
       #colVal <- append(colVal, which(aucVal==max(aucVal)))
       newModel <- glm(y ~ as.matrix(x[,colVal]), family=binomial())
-      oldPred[as.numeric(names(predict(newModel)))] <- predict(baseModel)[as.numeric(names(predict(newModel)))]
-      newPred[as.numeric(names(predict(newModel)))] <- predict(newModel)
+      oldPred[as.numeric(names(predict(newModel)))] <- predict(baseModel, type='response')[as.numeric(names(predict(newModel)))]
+      newPred[as.numeric(names(predict(newModel)))] <- predict(newModel, type='response')
       rocNew <- roc(y ~ newPred)
       rocOld <- roc(y ~ oldPred)
-      modDiff <- roc.test(rocOld, rocNew, alternative='less', method='d')$p.value
+      print(rocOld)
+      print(rocNew)
+      modDiff <- roc.test(rocOld, rocNew, alternative='less', method='b')$p.value
       modName <- paste(colnames(x)[colVal], collapse='+')
       modPerf <- pROC::auc(rocNew)
       outputRow <- c(q, modName, modPerf, modDiff)
@@ -167,7 +173,8 @@ buildStepROCModel <- function(x, y, nStep=50, varAdd=1){
       baseModel <- newModel
       valsToLoop <- valsToLoop[-which(floor(rank(aucVal))>=1 & floor(rank(aucVal))<=varAdd)]
       # Now if we don't see an imporvment in AUC break the loop
-      if(pROC::auc(rocNew)<=pROC::auc(rocOld)){
+      if(pROC::auc(rocNew)<=outputData[q,3]){
+        print('we are here')
         break
       }
       outputData <- rbind(outputData, outputRow)
@@ -179,29 +186,39 @@ buildStepROCModel <- function(x, y, nStep=50, varAdd=1){
 # Now lets see how well we can build our model in a cross validated fashion
 # This will be done within modality just to explore things
 foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
-foldsToLoop <- createFolds(male.data$usageBin, 5)
+male.data <- male.data[complete.cases(male.data[,grep('_jlf_vol_', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, 47)
 cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, 10)){
+for(q in seq(1, 47)){
   index <- foldsToLoop[[q]]
-  volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
-  outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
-# Now build this model and
-  tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-  cvPredVals[index] <- predict(tmpModel, newdata=male.data[index,], type='response')
-  cv.glmnet()
+  #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+  #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+  # Now build this model and
+  # build a lasso model
+  optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('_jlf_vol_', names(male.data))]), alpha=1, family="binomial")
+  lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('_jlf_vol_', names(male.data))]), alpha=1, lambda=optLam$lambda.min)
+  #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+  cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('_jlf_vol_', names(male.data))]), type='response')
+  
 }
 plot(roc(male.data$usageBin ~ cvPredVals))
 cvPredValsVol <- cvPredVals
 
+# Now try all modalities
+male.data <- male.data[complete.cases(male.data[,grep('dti_jlf_tr', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, 20)
 cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, 10)){
+for(q in seq(1, 20)){
     index <- foldsToLoop[[q]]
-    volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_ct_', names(male.data))], varAdd=6)
-    outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
     # Now build this model and
-    tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    #tmpModel <-  randomForest(formula=outModel,data=male.data[-index,],n.tree=300,mtry=3,na.action="na.omit")
-    cvPredVals[index] <- predict(tmpModel, newdata=male.data[index,], type='response')
+    # build a lasso model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=.55, family="binomial")
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr', names(male.data))]), type='response')
+    
 }
 roc(male.data$usageBin ~ cvPredVals)
 
@@ -215,3 +232,8 @@ for(q in seq(1, 5)){
     tmpModel <-  randomForest(formula=outModel,data=male.data[-index,],n.tree=500,mtry=2,na.action="na.omit")
     cvPredVals[index] <- predict(tmpModel, newdata=male.data[index,], type='response')
 }
+
+
+# bestglm explore
+tmpDF <- male.data[,grep('mprage_jlf_vol_R', names(male.data))]
+dataToUse <-
