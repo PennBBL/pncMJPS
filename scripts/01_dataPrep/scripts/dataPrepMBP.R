@@ -1,23 +1,23 @@
 #
-t1 <- read.csv('alffData.csv')
-t2 <- read.csv('cbfData.csv')
-t3 <- read.csv('ctData.csv')
-t4 <- read.csv('gmdData.csv')
-t5 <- read.csv('jhuFALabel.csv')
-t6 <- read.csv('jlfTRData.csv')
-t7 <- read.csv('rehoData.csv')
-t8 <- read.csv('volumeData.csv')
+#t1 <- read.csv('alffData.csv')
+#t2 <- read.csv('cbfData.csv')
+#t3 <- read.csv('ctData.csv')
+#t4 <- read.csv('gmdData.csv')
+#t5 <- read.csv('jhuFALabel.csv')
+#t6 <- read.csv('jlfTRData.csv')
+#t7 <- read.csv('rehoData.csv')
+#t8 <- read.csv('volumeData.csv')
 
-allData <- merge(t1, t2, all=T)
-allData <- merge(allData, t3, all=T)
-allData <- merge(allData, t4, all=T)
-allData <- merge(allData, t5, all=T)
-allData <- merge(allData, t6, all=T)
-allData <- merge(allData, t7, all=T)
-allData <- merge(allData, t8, all=T)
+#allData <- merge(t1, t2, all=T)
+#allData <- merge(allData, t3, all=T)
+#allData <- merge(allData, t4, all=T)
+#allData <- merge(allData, t5, all=T)
+#allData <- merge(allData, t6, all=T)
+#allData <- merge(allData, t7, all=T)
+#allData <- merge(allData, t8, all=T)
 
 ## Load library(s)
-install_load('psych', 'ggplot2', 'pROC', 'ggrepel', 'caret', 'randomForest', 'MatchIt', 'glmnet')
+install_load('psych', 'ggplot2', 'pROC', 'ggrepel', 'caret', 'randomForest', 'MatchIt', 'glmnet', 'doMC')
 
 # Now start loading the data down here
 # This should be run from the dta directory
@@ -29,8 +29,8 @@ mjData$dosage[which(mjData$mjpastyr=="Less than once a month")] <- 2
 mjData$dosage[which(mjData$mjpastyr=="About once a month")] <- 3
 mjData$dosage[which(mjData$mjpastyr=="2-3 times a month")] <- 4
 mjData$dosage[which(mjData$mjpastyr=="1-2 times a week")] <- 5
-mjData$dosage[which(mjData$mjpastyr=="3-4 times a week")] <- 6
-mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 7
+mjData$dosage[which(mjData$mjpastyr=="3-4 times a week")] <- 1
+mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 1
 
 # Now load imaging data
 img.data <- read.csv('./imagingDataAll.csv')
@@ -48,8 +48,13 @@ female.data <- all.data[which(all.data$sex==2),]
 male.data$usageBin <- 0
 male.data$usageBin[male.data$dosage>1] <- 1
 
-# Now match up our
-mod <- matchit(usageBin ~ ageAtGo1Scan + envSES, data=male.data, ratio=1, na.action=na.omit)
+# Now match up our data
+tmpDat <- male.data[c('bblid', 'scanid', 'usageBin', 'ageAtGo1Scan', 'envSES')]
+mod <- matchit(usageBin ~ ageAtGo1Scan + envSES, data=tmpDat, ratio=3, na.action=na.omit)
+male.data.all <- male.data
+male.data <- male.data[as.vector(mod$match.matrix),]
+male.data <- rbind(male.data, male.data.all[which(male.data.all$usageBin==1),])
+male.data.all.m <- male.data
 
 
 # Now run through every colume and give us a t value for every JLF region
@@ -102,138 +107,192 @@ tValsMaleOut <- tValsMaleOut[order(tValsMaleOut[,3]),]
 # Now prepare a bar graph with these values
 plotData <- tValsMaleOut[which(tValsMaleOut[,3]<.05),]
 
-# Now plot the t values # STart with all positive t values
-
-
-# Now I want to go through the AUC values and see how adding each additional variable adds
-# to our cv performance prediciton - this will be done in a totally n fold cv
-# where n is equal to our number of frequent users.
-
-# First build a function which will build a roc model in a forward stepwise manner
-# Inputs to the model include the X matrix, and the binary usage outcome
-# We are going to have to take a lot of steps to ensure that we use the same rows at each step
-buildStepROCModel <- function(x, y, nStep=50, varAdd=1){
-    # Prepare the output of this function
-    # this will be a matrix with the formula, AUC, significance from previous iteration
-    outputData <- NULL
-    outPredBase <- rep(NA, length(y))
-    #lets first find the highest AUC value
-    aucInit <- NULL
-    valsToLoop <- seq(1, dim(x)[2])
-    for(i in valsToLoop){
-      tmp <- roc(y ~ x[,i])
-      outVal <- tmp$auc
-      aucInit <- append(aucInit, outVal)
-    }
-    # Now build a base model with these values
-    colVal <- which(aucInit==max(aucInit))
-    baseModel <- glm(y ~ x[,colVal], family=binomial())
-    valsToLoop <- valsToLoop[-colVal]
-    outPredBase[as.numeric(names(predict(baseModel)))] <- predict(baseModel)
-    # Now prepare the inital row for the output
-    initPred <- rep(NA, length(y))
-    initPred[as.numeric(names(predict(baseModel)))] <- predict(baseModel)
-    rocInit <- roc(y ~ initPred)
-    aucInit <- pROC::auc(rocInit)
-    modName <- paste(colnames(x)[colVal])
-    initRow <- c(0, modName, aucInit, 0)
-    outputData <- rbind(outputData, initRow)
-    # Now begin the building process
-    for(q in 1:6){
-      # Initialize some variables
-      aucVal <- NULL
-      for(z in valsToLoop){
-          # First build every model and get model performance
-          print(z)
-          colValNew <- append(colVal, z)
-          tmpPredVals <- rep(NA, length(y))
-          tmpMod <- glm(y ~ as.matrix(x[,colValNew]), family=binomial())
-          tmpPredVals[as.numeric(names(predict(tmpMod)))] <- predict(tmpMod, type='response')
-          aucVal <- append(aucVal, pROC::auc(roc(y ~ tmpPredVals)))
-      }
-      # Now grab the best performing model and output the model, performance metric, and
-      # the difference in model performance compared to the previous iteration
-      # then repeat
-      oldPred <- rep(NA, length(y))
-      newPred <- rep(NA, length(y))
-      colVal <- append(unique(colVal), which(floor(rank(aucVal))>=1 & floor(rank(aucVal))<=varAdd))
-      #colVal <- append(colVal, which(aucVal==max(aucVal)))
-      newModel <- glm(y ~ as.matrix(x[,colVal]), family=binomial())
-      oldPred[as.numeric(names(predict(newModel)))] <- predict(baseModel, type='response')[as.numeric(names(predict(newModel)))]
-      newPred[as.numeric(names(predict(newModel)))] <- predict(newModel, type='response')
-      rocNew <- roc(y ~ newPred)
-      rocOld <- roc(y ~ oldPred)
-      print(rocOld)
-      print(rocNew)
-      modDiff <- roc.test(rocOld, rocNew, alternative='less', method='b')$p.value
-      modName <- paste(colnames(x)[colVal], collapse='+')
-      modPerf <- pROC::auc(rocNew)
-      outputRow <- c(q, modName, modPerf, modDiff)
-      # Now prepare for the next loop
-      baseModel <- newModel
-      valsToLoop <- valsToLoop[-which(floor(rank(aucVal))>=1 & floor(rank(aucVal))<=varAdd)]
-      # Now if we don't see an imporvment in AUC break the loop
-      if(pROC::auc(rocNew)<=outputData[q,3]){
-        print('we are here')
-        break
-      }
-      outputData <- rbind(outputData, outputRow)
-    }
-    return(outputData)
-}
-
 
 # Now lets see how well we can build our model in a cross validated fashion
 # This will be done within modality just to explore things
-foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
-male.data <- male.data[complete.cases(male.data[,grep('_jlf_vol_', names(male.data))]),]
-foldsToLoop <- createFolds(male.data$usageBin, 47)
+aucVals <- NULL
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('_jlf_vol_', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, 56)
 cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, 47)){
+registerDoMC(4)
+for(q in seq(1, length(foldsToLoop))){
   index <- foldsToLoop[[q]]
   #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
   #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
   # Now build this model and
   # build a lasso model
-  optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('_jlf_vol_', names(male.data))]), alpha=1, family="binomial")
-  lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('_jlf_vol_', names(male.data))]), alpha=1, lambda=optLam$lambda.min)
+  optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('_jlf_vol_', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+  print(optLam$lambda.min)
+  lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('_jlf_vol_', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+  print(lasModel$beta)
   #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+  print(q)
   cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('_jlf_vol_', names(male.data))]), type='response')
   
 }
 plot(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('vol', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
 cvPredValsVol <- cvPredVals
 
-# Now try all modalities
-male.data <- male.data[complete.cases(male.data[,grep('dti_jlf_tr', names(male.data))]),]
-foldsToLoop <- createFolds(male.data$usageBin, 20)
+# Now try cbf
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('pcasl_jlf_cbf', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
 cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, 20)){
+for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
     #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
     #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
     # Now build this model and
     # build a lasso model
-    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=.55, family="binomial")
-    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('pcasl_jlf_cbf', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+    print(optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('pcasl_jlf_cbf', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
     #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr', names(male.data))]), type='response')
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('pcasl_jlf_cbf_', names(male.data))]), type='response')
     
 }
-roc(male.data$usageBin ~ cvPredVals)
+plot(roc(male.data$usageBin ~ cvPredVals))
+pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('cbf', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
 
+# tr
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
 cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, 5)){
+for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
-    volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_', names(male.data))], varAdd=10)
-    outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
     # Now build this model and
-    tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    tmpModel <-  randomForest(formula=outModel,data=male.data[-index,],n.tree=500,mtry=2,na.action="na.omit")
-    cvPredVals[index] <- predict(tmpModel, newdata=male.data[index,], type='response')
+    # build a lasso model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+    print(optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    print(lasModel$beta)
+    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
+    
 }
+plot(roc(male.data$usageBin ~ cvPredVals))
+pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('tr', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
+
+# gmd
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('mprage_jlf_gmd', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+cvPredVals <- rep(NA, length(male.data$usageBin))
+for(q in seq(1, length(foldsToLoop))){
+    index <- foldsToLoop[[q]]
+    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+    # Now build this model and
+    # build a lasso model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('mprage_jlf_gmd', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+    print(optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('mprage_jlf_gmd', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    print(lasModel$beta)
+    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('mprage_jlf_gmd_', names(male.data))]), type='response')
+    
+}
+plot(roc(male.data$usageBin ~ cvPredVals))
+pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('gmd', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
+
+# ct
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('mprage_jlf_ct', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+cvPredVals <- rep(NA, length(male.data$usageBin))
+for(q in seq(1, length(foldsToLoop))){
+    index <- foldsToLoop[[q]]
+    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+    # Now build this model and
+    # build a lasso model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('mprage_jlf_ct', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+    print(optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('mprage_jlf_ct', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    print(lasModel$beta)
+    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('mprage_jlf_ct_', names(male.data))]), type='response')
+    
+}
+plot(roc(male.data$usageBin ~ cvPredVals))
+pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('ct', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
+
+# reho
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('rest_jlf_reho', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+cvPredVals <- rep(NA, length(male.data$usageBin))
+for(q in seq(1, length(foldsToLoop))){
+    index <- foldsToLoop[[q]]
+    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+    # Now build this model and
+    # build a lasso model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('rest_jlf_reho', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+    print(optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('rest_jlf_reho', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('rest_jlf_reho_', names(male.data))]), type='response')
+    
+}
+plot(roc(male.data$usageBin ~ cvPredVals))
+pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('reho', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
+
+# ALFF
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('rest_jlf_alff', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+cvPredVals <- rep(NA, length(male.data$usageBin))
+for(q in seq(1, length(foldsToLoop))){
+    index <- foldsToLoop[[q]]
+    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+    # Now build this model and
+    # build a lasso model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('rest_jlf_alff', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+    print(optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('rest_jlf_alff', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('rest_jlf_alff_', names(male.data))]), type='response')
+    
+}
+plot(roc(male.data$usageBin ~ cvPredVals))
+pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('alff', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
+
+# FA
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_dtitk_jhulabel_fa', names(male.data))]),]
+foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+cvPredVals <- rep(NA, length(male.data$usageBin))
+for(q in seq(1, length(foldsToLoop))){
+    index <- foldsToLoop[[q]]
+    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+    # Now build this model and
+    # build a lasso model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=.55, family="binomial", parallel=T)
+    print(optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=.55, lambda=optLam$lambda.min)
+    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), type='response')
+    
+}
+plot(roc(male.data$usageBin ~ cvPredVals))
+pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+aucVals <- rbind(aucVals, c('fa', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
 
 
-# bestglm explore
-tmpDF <- male.data[,grep('mprage_jlf_vol_R', names(male.data))]
-dataToUse <-
+
+
+aucVals <- as.data.frame(aucVals)
+aucVals$V2 <- as.numeric(as.character(aucVals$V2))
+# Now plot the auc Values
+aucPlot <- ggplot(aucVals, aes(x=V1, y=as.numeric(as.character(V2)))) +
+ geom_col()
+
+pdf('test.pdf')
+print(aucPlot)
+dev.off()
