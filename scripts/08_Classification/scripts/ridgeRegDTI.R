@@ -18,10 +18,11 @@
 
 ## Load library(s)
 install_load('psych', 'ggplot2', 'pROC', 'ggrepel', 'caret', 'randomForest', 'MatchIt', 'glmnet', 'doMC')
+source('../functions/functions.R')
 
 # Now start loading the data down here
 # This should be run from the dta directory
-mjData <- read.csv("n9462_mj_ps_cnb_fortmm.csv")
+mjData <- read.csv("../../../data/n9462_mj_ps_cnb_fortmm.csv")
 mjData$dosage <- NA
 mjData$dosage[which(mjData$marcat=='MJ Non-User')] <- 0
 mjData$dosage[which(mjData$marcat=='MJ User' & mjData$mjpastyr=='')] <- 1
@@ -33,8 +34,8 @@ mjData$dosage[which(mjData$mjpastyr=="3-4 times a week")] <- 1
 mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 1
 
 # Now load imaging data
-img.data <- read.csv('./imagingDataAll.csv')
-#img.data <- read.csv('./n1601_imagingDataDump_20180104.csv')
+img.data <- read.csv('../../../data/imagingDataAll.csv')
+#img.data <- read.csv('../../../data/n1601_imagingDataDump_20180104.csv')
 
 # Now give us all the values
 all.data <- merge(img.data, mjData)
@@ -134,13 +135,16 @@ aucVals$V2 <- as.numeric(as.character(aucVals$V2))
 # Now plot the auc Values
 aucPlot <- ggplot(aucVals, aes(x=V1, y=as.numeric(as.character(V2)))) +
  geom_col()
-
 pdf('nonUserVsInFreqUser.pdf')
 print(aucPlot)
 dev.off()
 
+# Now write the color maps and all of that good stuff
+writeColorTableandKey(inputData=valsOut,inputColumn=2,outName='allValsA',minTmp=c(-1,0),maxTmp=c(.45,.8))
+writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='allValsT',minTmp=c(-1,0),maxTmp=c(.45,.8))
+
 # Now do the same thing but for our in freq vs freq smokers
-mjData <- read.csv("n9462_mj_ps_cnb_fortmm.csv")
+mjData <- read.csv("../../../data/n9462_mj_ps_cnb_fortmm.csv")
 mjData$dosage <- NA
 mjData$dosage[which(mjData$marcat=='MJ Non-User')] <- 1
 mjData$dosage[which(mjData$marcat=='MJ User' & mjData$mjpastyr=='')] <- 1
@@ -171,6 +175,7 @@ aucVals <- NULL
 registerDoMC(4)
 # tr
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
+male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
 foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
@@ -243,3 +248,8 @@ geom_col()
 pdf('userVsFreqUser.pdf')
 print(aucPlot)
 dev.off()
+
+# Now write the color maps and all of that good stuff
+writeColorTableandKey(inputData=valsOut,inputColumn=2,outName='allValsUvFA',minTmp=c(-1,0),maxTmp=c(.45,.8))
+writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='allValsUvFT',minTmp=c(-1,0),maxTmp=c(.45,.8))
+
