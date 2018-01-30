@@ -1,23 +1,5 @@
-#
-#t1 <- read.csv('alffData.csv')
-#t2 <- read.csv('cbfData.csv')
-#t3 <- read.csv('ctData.csv')
-#t4 <- read.csv('gmdData.csv')
-#t5 <- read.csv('jhuFALabel.csv')
-#t6 <- read.csv('jlfTRData.csv')
-#t7 <- read.csv('rehoData.csv')
-#t8 <- read.csv('volumeData.csv')
-
-#allData <- merge(t1, t2, all=T)
-#allData <- merge(allData, t3, all=T)
-#allData <- merge(allData, t4, all=T)
-#allData <- merge(allData, t5, all=T)
-#allData <- merge(allData, t6, all=T)
-#allData <- merge(allData, t7, all=T)
-#allData <- merge(allData, t8, all=T)
-
 ## Load library(s)
-install_load('psych', 'ggplot2', 'pROC', 'ggrepel', 'caret', 'randomForest', 'MatchIt', 'glmnet', 'doMC')
+install_load('psych', 'ggplot2', 'pROC', 'ggrepel', 'caret', 'randomForest', 'MatchIt', 'glmnet', 'doMC', 'useful')
 source('../functions/functions.R')
 
 # Now start loading the data down here
@@ -59,43 +41,61 @@ male.data.all <- male.data
 male.data <- male.data[as.vector(mod$match.matrix),]
 male.data <- rbind(male.data, male.data.all[which(male.data.all$usageBin==1),])
 male.data.all.m <- male.data
+propValue <- table(male.data$usageBin)[2]/sum(table(male.data$usageBin))
+male.data.all.m$usageBinOrig <- male.data.all.m$usageBin
 
-# Now lets see how well we can build our model in a cross validated fashion
-# This will be done within modality just to explore things
-aucVals <- NULL
+# Now create a random binary vector and see how well
+# we can classify these two groups
+# We are going to run this 100 times and then plot a heat ROC map
 registerDoMC(4)
-# tr
-male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
-male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
-foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
-cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, length(foldsToLoop))){
-    index <- foldsToLoop[[q]]
-    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
-    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
-    # Now build this model and
-    # build a lasso model
-    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=T)
-    print(optLam$lambda.min)
-    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-    print(lasModel$beta)
-    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
+allAUC <- NULL
+for(z in 1:1000){
+    # Create a random binary outcome
+  male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValue)
+  # Now lets see how well we can build our model in a cross validated fashion
+  # This will be done within modality just to explore things
+  aucVals <- NULL
+  # tr
+  male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
+  male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
+  foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+  cvPredVals <- rep(NA, length(male.data$usageBin))
+  for(q in seq(1, length(foldsToLoop))){
+      index <- foldsToLoop[[q]]
+      #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
+      #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
+      # Now build this model and
+      # build a lasso model
+      optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=T)
+      lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
+      #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
+      cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
     
+  }
+  print(z)
+  plot(roc(male.data$usageBin ~ cvPredVals))
+  pROC::auc(roc(male.data$usageBin ~ cvPredVals))
+  aucVals <- rbind(aucVals, c('tr', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
+  # Now export the auc value to
+  outputValues <- rocdata(grp=binary.flip(male.data$usageBin), pred=cvPredVals)$roc
+  outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)))
+  allAUC <- rbind(allAUC, outputValues)
 }
-plot(roc(male.data$usageBin ~ cvPredVals))
-pROC::auc(roc(male.data$usageBin ~ cvPredVals))
-aucVals <- rbind(aucVals, c('tr', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
+write.csv(allAUC, 'allVals.csv', quote=F, row.names=F)
+q()
 
-# Now prepare t values and roc values across these people
-valsOut <- NULL
-seqVals <- grep('dti_jlf_tr', names(male.data))
-for(q in seqVals){
-  tVal <-t.test(male.data[,q]~usageBin, data=male.data)
-  rocVal <- roc(usageBin~male.data[,q], data=male.data)
-  outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
-  valsOut <- rbind(valsOut, outputRow)
-}
+# Now plot a average sens and spec plot from out null model
+allAUC$x2 <- round(allAUC$x, digits=2)
+plotData <- summarySE(data=allAUC, measurevar='y', groupvars='x2')
+plotData <- plotData[complete.cases(plotData),]
+plotData$lower <- plotData$y - plotData$se
+plotData$upper <- plotData$y + plotData$se
+outPlot <- ggplot(allAUC, aes(x=x, y=y)) +
+  geom_point() +
+  #geom_ribbon(linetype=2, alpha=0.5) +
+  geom_abline (intercept = 0, slope = 1) +
+  theme_bw() +
+  geom_density_2d(aes(fill = ..density..), geom="polygon", contour=F)
 
 # FA
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_dtitk_jhulabel_fa', names(male.data))]),]
