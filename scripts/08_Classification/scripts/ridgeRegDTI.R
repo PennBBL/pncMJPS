@@ -42,9 +42,9 @@ all.data <- merge(img.data, mjData)
 all.data <- all.data[-which(all.data$dosage==1),]
 
 # Now prepare a sex specific values
-male.data <- all.data[which(all.data$sex==2),]
+male.data <- all.data[which(all.data$sex==1),]
 #male.data <- male.data[which(male.data$dosage == 0 | male.data$dosage > 5),]
-female.data <- all.data[which(all.data$sex==1),]
+female.data <- all.data[which(all.data$sex==2),]
 
 # Now add a binary matrix for use or no use
 male.data$usageBin <- 0
@@ -66,7 +66,7 @@ aucVals <- NULL
 registerDoMC(4)
 # tr
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
-male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
+#male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
 foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
@@ -96,6 +96,38 @@ for(q in seqVals){
   outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
   valsOut <- rbind(valsOut, outputRow)
 }
+
+# Now create a confusion matrix at our "best" cut off value
+cutVal <- coords(roc(male.data$usageBin ~ cvPredVals), 'best')
+# Now grab our confusion matrix
+male.data$usagePred <- 0
+male.data$usagePred[cvPredVals<=cutVal[1]] <- 2
+table(male.data$usageBin, male.data$usagePred)
+
+# Now find our true log odds from a modality regressed data set
+mod.reg.ds <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
+mod.reg.ds <- mod.reg.ds[,-grep('dti_jlf_tr_MeanTR', names(mod.reg.ds))]
+mod.reg.ds <- regressWithinModality(mod.reg.ds, 'dti_jlf_tr')
+colVals <- grep('dti_jlf_tr', names(mod.reg.ds))
+mod.reg.ds <- mod.reg.ds[,c(1027, colVals)]
+mod.reg.ds[,2:length(colVals)] <- as.matrix(scale(mod.reg.ds[,2:length(colVals)]))
+# Now create the model
+outMod <- glm(usageBin~., data=mod.reg.ds)
+toWrite <- summary(outMod)
+write.csv(toWrite$coefficients, 'maleTRCoefValuesWM.csv', quote=F, row.names=T)
+
+# Now do the sme but exclude TBV and WM values
+mod.reg.ds <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
+mod.reg.ds <- mod.reg.ds[,-grep('dti_jlf_tr_MeanTR', names(mod.reg.ds))]
+mod.reg.ds <- mod.reg.ds[,-grep('_Lobe_WM', names(mod.reg.ds))]
+mod.reg.ds <- regressWithinModality(mod.reg.ds, 'dti_jlf_tr')
+colVals <- grep('dti_jlf_tr', names(mod.reg.ds))
+mod.reg.ds <- mod.reg.ds[,c(991, colVals)]
+mod.reg.ds[,2:length(colVals)] <- as.matrix(scale(mod.reg.ds[,2:length(colVals)]))
+# Now create the model
+outMod <- glm(usageBin~., data=mod.reg.ds)
+toWrite <- summary(outMod)
+write.csv(toWrite$coefficients, 'maleTRCoefValues.csv', quote=F, row.names=T)
 
 # FA
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_dtitk_jhulabel_fa', names(male.data))]),]

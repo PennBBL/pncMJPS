@@ -160,6 +160,7 @@ rmLatVal <- function(inputROIName){
   return(output)
 }
 
+# Create a function which will be used to create our sen and spec at each cut off point
 rocdata <- function(grp, pred){
     # Produces x and y co-ordinates for ROC curve plot
     # Arguments: grp - labels classifying subject status
@@ -210,7 +211,7 @@ rocdata <- function(grp, pred){
     
     return (list(roc = roc, stats = stats))
 }
-
+# Create a funciton which will plot a ROC curve
 rocplot.single <- function(grp, pred, title = "ROC Plot", p.value = FALSE){
     require(ggplot2)
     plotdata <- rocdata(grp, pred)
@@ -230,4 +231,32 @@ rocplot.single <- function(grp, pred, title = "ROC Plot", p.value = FALSE){
     text = element_text(size=30)) + theme(legend.position="none")
     
     return(p)
+}
+
+# Create a function which can be used to regress out within modality trends
+regressWithinModality <- function(dataFrameToRegress, grepPattern){
+    if(identical(NULL, dim(dataFrameToRegress))){
+        return(dataFrameToRegress)
+    }
+    # Make sure our input data is a data frame
+    dataFrameToRegress <- as.data.frame(dataFrameToRegress)
+    # First create a temporary dataFrame limited to only our values of interest
+    colsOfInterest <- grep(grepPattern, names(dataFrameToRegress))
+    toWorkWith <- dataFrameToRegress[complete.cases(dataFrameToRegress[,colsOfInterest]), colsOfInterest]
+    
+    # Now I will use apply to create the regressed data frame values
+    #toWorkWithOutput <- apply(toWorkWith, 2, function(x) lm(x ~ . ,data=toWorkWith)$residuals)
+    toWorkWithOutput <- NULL
+    
+    # Now loop thorugh each column and regress within modality
+    for(i in seq(1, dim(toWorkWith)[2])){
+        tmpFormula <- as.formula(paste(names(toWorkWith)[i], '~.', sep=''))
+        newValues <- lm(tmpFormula, data=toWorkWith)$residuals
+        toWorkWithOutput <- cbind(toWorkWithOutput, newValues)
+    }
+    colnames(toWorkWithOutput) <- names(dataFrameToRegress)[colsOfInterest]
+    # Now prepare our output
+    outputDataFrame <- dataFrameToRegress[complete.cases(dataFrameToRegress[,colsOfInterest]),]
+    outputDataFrame[, colsOfInterest] <- toWorkWithOutput
+    return(outputDataFrame)
 }
