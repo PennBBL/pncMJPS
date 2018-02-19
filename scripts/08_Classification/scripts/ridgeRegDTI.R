@@ -42,7 +42,7 @@ all.data <- merge(img.data, mjData)
 all.data <- all.data[-which(all.data$dosage==1),]
 
 # Now prepare a sex specific values
-male.data <- all.data[which(all.data$sex==1),]
+male.data <- all.data[which(all.data$sex==2),]
 #male.data <- male.data[which(male.data$dosage == 0 | male.data$dosage > 5),]
 female.data <- all.data[which(all.data$sex==2),]
 
@@ -83,7 +83,7 @@ for(q in seq(1, length(foldsToLoop))){
     cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
     
 }
-plot(roc(male.data$usageBin ~ cvPredVals))
+plot(roc(male.data$usageBin ~ cvPredVals), print.thres="best")
 pROC::auc(roc(male.data$usageBin ~ cvPredVals))
 aucVals <- rbind(aucVals, c('tr', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
 
@@ -102,7 +102,8 @@ cutVal <- coords(roc(male.data$usageBin ~ cvPredVals), 'best')
 # Now grab our confusion matrix
 male.data$usagePred <- 0
 male.data$usagePred[cvPredVals<=cutVal[1]] <- 2
-table(male.data$usageBin, male.data$usagePred)
+outTab <- table(male.data$usageBin, male.data$usagePred)
+write.csv(outTab, "confusionMatrixNonVsUser.csv", quote=F, row.names=F)
 
 # Now find our true log odds from a modality regressed data set
 mod.reg.ds <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
@@ -116,7 +117,7 @@ outMod <- glm(usageBin~., data=mod.reg.ds)
 toWrite <- summary(outMod)
 write.csv(toWrite$coefficients, 'maleTRCoefValuesWM.csv', quote=F, row.names=T)
 
-# Now do the sme but exclude TBV and WM values
+# Now do the same but exclude TBV and WM values
 mod.reg.ds <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
 mod.reg.ds <- mod.reg.ds[,-grep('dti_jlf_tr_MeanTR', names(mod.reg.ds))]
 mod.reg.ds <- mod.reg.ds[,-grep('_Lobe_WM', names(mod.reg.ds))]
@@ -171,6 +172,10 @@ pdf('nonUserVsInFreqUser.pdf')
 print(aucPlot)
 dev.off()
 
+# Now write a demographics table
+# Before I wirte this though I have to get the deomgraphics from the freq users
+demo.vals <- summarySE(data=male.data, measurevar="ageAtScan1", groupvars="dosage")
+
 # Now write the color maps and all of that good stuff
 writeColorTableandKey(inputData=valsOut,inputColumn=2,outName='allValsA',minTmp=c(-1,0),maxTmp=c(.45,.8))
 writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='allValsT',minTmp=c(-3,0),maxTmp=c(0,3))
@@ -194,8 +199,7 @@ all.data <- all.data[-which(is.na(all.data$dosage)),]
 
 # Now prepare a sex specific values
 male.data <- all.data[which(all.data$sex==2),]
-#male.data <- male.data[which(male.data$dosage == 0 | male.data$dosage > 5),]
-female.data <- all.data[which(all.data$sex==1),]
+female.data <- all.data[which(all.data$sex==2),]
 
 # Now add a binary matrix for use or no use
 male.data$usageBin <- 0
@@ -267,6 +271,13 @@ for(q in seqVals){
     outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
     valsOut <- rbind(valsOut, outputRow)
 }
+# Now create a confusion matrix at our "best" cut off value
+cutVal <- coords(roc(male.data$usageBin ~ cvPredVals), 'best')
+# Now grab our confusion matrix
+male.data$usagePred <- 0
+male.data$usagePred[cvPredVals<=cutVal[1]] <- 2
+outTab <- table(male.data$usageBin, male.data$usagePred)
+write.csv(outTab, "confusionMatrixFrequent.csv", quote=F, row.names=F)
 
 # Now write the output
 write.csv(valsOut, 'tValsandROCValsuserVsFreqUser.csv', quote=F, row.names=F)
@@ -285,3 +296,6 @@ dev.off()
 writeColorTableandKey(inputData=valsOut,inputColumn=2,outName='allValsUvFA',minTmp=c(-1,0),maxTmp=c(.45,.8))
 writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='allValsUvFT',minTmp=c(-3,0),maxTmp=c(0,3))
 
+# Now write the demo table for the freq users
+demo.vals <- rbind(demo.vals, summarySE(data=male.data, measurevar="ageAtScan1", groupvars="dosage")[c(5,6),])
+write.csv(demo.vals, "outputDemoVals.csv", quote=F, row.names=F)
