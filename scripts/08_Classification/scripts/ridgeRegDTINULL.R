@@ -50,95 +50,56 @@ male.data.all.m$usageBinOrig <- male.data.all.m$usageBin
 allAUC <- NULL
 cl <- makeCluster(8)
 registerDoParallel(cl)
-allAUC <- foreach(z=seq(1,100), .combine=rbind) %dopar%{
+allAUC <- foreach(z=seq(1,8), .combine=rbind) %dopar%{
   # Load library(s)
-  install_load('glmnet', 'caret', 'pROC')
+  install_load('glmnet', 'caret', 'pROC', 'useful')
   # Create a random binary outcome
   male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValue)
   # Now lets see how well we can build our model in a cross validated fashion
-  # This will be done within modality just to explore things
-  aucVals <- NULL
-  # tr
-  male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
-  male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
+  male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
   foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
   cvPredVals <- rep(NA, length(male.data$usageBin))
   cvPredValsReal <- rep(NA, length(male.data$usageBin))
   for(q in seq(1, length(foldsToLoop))){
-      # First do the random folds
       index <- foldsToLoop[[q]]
-      # Now build this model and
-      # build a lasso model
-      optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=F)
-      lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-      cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
-      # Now do the real folds
-      optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=F)
-      lasModel <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-      cvPredValsReal[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
+      # build a ridge model with the fake data
+      optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+      lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+      
+      # Now do the real labels
+      optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+      lasModel2 <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+      
+      cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
+      cvPredVals[index] <- predict(lasModel1, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
+      
   }
   # Now export the auc value to our bootstrapped AUC holder
   #outputValues <- rocdata(grp=binary.flip(male.data$usageBin), pred=cvPredVals)$roc
-  #outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)))
-  cm <- as.matrix(table(male.data$usageBin, male.data$usageBinOrig))
-  diag <- diag(cm)
-  n <- sum(cm)
-  outputValues <- cbind(z, pROC::auc(roc(male.data$usageBin ~ cvPredVals)), pROC::auc(roc(male.data$usageBinOrig ~ cvPredValsReal)), sum(diag)/n)
+  outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
+  colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
+  outputValues2 <- cbind(rocdata(grp=binary.flip(male.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
+  colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
+  outputValues <- rbind(outputValues, outputValues2)
   outputValues
 }
-colnames(allAUC) <- c('count', 'fake', 'real', 'accuracyOfFake')
 # Kill the cluster
 stopCluster(cl)
+#colnames(allAUC) <- c('count', 'fake', 'real', 'accuracyOfFake')
+allAUC$facPlot <- paste(allAUC$Fold, allAUC$Status)
 
-# Now calculate a t.test between the null and the real distribution
-outStatMD <- t.test(allAUC[,2], allAUC[,3], alternative='less', paired=T)
+# Now make our plot
+p <- ggplot(allAUC, aes(x = x, y = y, group=facPlot, col=Status)) +
+  geom_line(alpha=1/10, size=3) +
+  theme_bw() +
+  scale_fill_manual(values=c("Real"="Blue", "Fake"="Red")) +
+  geom_abline (intercept = 0, slope = 1) +
+  scale_x_continuous("1-Specificity") +
+  scale_y_continuous("Sensitivity")
 
-# FA
-allAUC <- NULL
-cl <- makeCluster(8)
-registerDoParallel(cl)
-allAUC <- foreach(z=seq(1,100), .combine=rbind) %dopar%{
-    # Load library(s)
-    install_load('glmnet', 'caret', 'pROC')
-    # Create a random binary outcome
-    male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValue)
-    # Now lets see how well we can build our model in a cross validated fashion
-    # This will be done within modality just to explore things
-    aucVals <- NULL
-    # tr
-    male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_dtitk_jhulabel_fa', names(male.data))]),]
-    foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
-    cvPredVals <- rep(NA, length(male.data$usageBin))
-    cvPredValsReal <- rep(NA, length(male.data$usageBin))
-    for(q in seq(1, length(foldsToLoop))){
-        # First do the random folds
-        index <- foldsToLoop[[q]]
-        # Now build this model and
-        # build a lasso model
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, family="binomial", parallel=F)
-        lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-        cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), type='response')
-        # Now do the real folds
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, family="binomial", parallel=F)
-        lasModel <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-        cvPredValsReal[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), type='response')
-    }
-    # Now export the auc value to our bootstrapped AUC holder
-    #outputValues <- rocdata(grp=binary.flip(male.data$usageBin), pred=cvPredVals)$roc
-    #outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)))
-    cm <- as.matrix(table(male.data$usageBin, male.data$usageBinOrig))
-    diag <- diag(cm)
-    n <- sum(cm)
-    outputValues <- cbind(z, pROC::auc(roc(male.data$usageBin ~ cvPredVals)), pROC::auc(roc(male.data$usageBinOrig ~ cvPredValsReal)), sum(diag)/n)
-    outputValues
-}
-colnames(allAUC) <- c('count', 'fake', 'real', 'accuracyOfFake')
-
-# Kill the cluster
-stopCluster(cl)
-
-# Now calculate a t.test between the null and the real distribution
-outStatFA <- wilcox.test(x=allAUC[,2], y=allAUC[,3], paired=T, alternative='less')
+pdf('testBoot.pdf')
+print(p)
+dev.off()
 
 # Now do the same thing but for our in freq vs freq smokers
 mjData <- read.csv("../../../data/n9462_mj_ps_cnb_fortmm.csv")
@@ -174,95 +135,54 @@ male.data.all.m$usageBinOrig <- male.data.all.m$usageBin
 allAUC <- NULL
 cl <- makeCluster(8)
 registerDoParallel(cl)
-allAUC <- foreach(z=seq(1,1000), .combine=rbind, .errorhandling='remove') %dopar%{
+allAUC <- foreach(z=seq(1,100), .combine=rbind, .errorhandling='remove') %dopar%{
     # Load library(s)
-    install_load('glmnet', 'caret', 'pROC')
+    install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValue)
     # Now lets see how well we can build our model in a cross validated fashion
-    # This will be done within modality just to explore things
-    aucVals <- NULL
-    # tr
-    male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
-    male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
-    foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
-    foldsToLoopReal <- createFolds(male.data$usageBinOrig, table(male.data$usageBinOrig)[2])
-    cvPredVals <- rep(NA, length(male.data$usageBin))
-    cvPredValsReal <- rep(NA, length(male.data$usageBin))
-    for(q in seq(1, length(foldsToLoop))){
-        # First do the random folds
-        index <- foldsToLoop[[q]]
-        index2 <- foldsToLoopReal[[q]]
-        # Now build this model and
-        # build a lasso model
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=F)
-        lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-        cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
-        # Now do the real folds
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index2]), x=as.matrix(male.data[-index2,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=F)
-        lasModel <- glmnet(y=as.vector(male.data$usageBinOrig[-index2]), x=as.matrix(male.data[-index2,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-        cvPredValsReal[index2] <- predict(lasModel, newx=as.matrix(male.data[index2,grep('dti_jlf_tr_', names(male.data))]), type='response')
-    }
-    # Now export the auc value to our bootstrapped AUC holder
-    #outputValues <- rocdata(grp=binary.flip(male.data$usageBin), pred=cvPredVals)$roc
-    #outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)))
-    cm <- as.matrix(table(male.data$usageBin, male.data$usageBinOrig))
-    diag <- diag(cm)
-    n <- sum(cm)
-    outputValues <- cbind(z, pROC::auc(roc(male.data$usageBin ~ cvPredVals)), pROC::auc(roc(male.data$usageBinOrig ~ cvPredValsReal)), sum(diag)/n)
-    outputValues
-}
-colnames(allAUC) <- c('count', 'fake', 'real', 'accuracyOfFake')
-# Kill the cluster
-stopCluster(cl)
-
-# Now calculate a t.test between the null and the real distribution
-outStatMDFreq <- wilcox.test(allAUC[,2], allAUC[,3], alternative='less', paired=T)
-
-# FA
-allAUC <- NULL
-cl <- makeCluster(8)
-registerDoParallel(cl)
-allAUC <- foreach(z=seq(1,1000), .combine=rbind, .errorhandling='remove') %dopar%{
-    # Load library(s)
-    install_load('glmnet', 'caret', 'pROC')
-    # Create a random binary outcome
-    male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValue)
-    # Now lets see how well we can build our model in a cross validated fashion
-    # This will be done within modality just to explore things
-    aucVals <- NULL
-    # tr
-    male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_dtitk_jhulabel_fa', names(male.data))]),]
+    male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
     foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
-        # First do the random folds
         index <- foldsToLoop[[q]]
-        # Now build this model and
-        # build a lasso model
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, family="binomial", parallel=F)
-        lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-        cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), type='response')
-        # Now do the real folds
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, family="binomial", parallel=F)
-        lasModel <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-        cvPredValsReal[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), type='response')
+        # build a ridge model with the fake data
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+        
+        # Now do the real labels
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel2 <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+        
+        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)))]), type='response')
+        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)))]), type='response')
+        
     }
     # Now export the auc value to our bootstrapped AUC holder
     #outputValues <- rocdata(grp=binary.flip(male.data$usageBin), pred=cvPredVals)$roc
-    #outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)))
-    cm <- as.matrix(table(male.data$usageBin, male.data$usageBinOrig))
-    diag <- diag(cm)
-    n <- sum(cm)
-    outputValues <- cbind(z, pROC::auc(roc(male.data$usageBin ~ cvPredVals)), pROC::auc(roc(male.data$usageBinOrig ~ cvPredValsReal)), sum(diag)/n)
+    outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
+    colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
+    outputValues2 <- cbind(rocdata(grp=binary.flip(male.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
+    colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
+    outputValues <- rbind(outputValues, outputValues2)
     outputValues
 }
-colnames(allAUC) <- c('count', 'fake', 'real', 'accuracyOfFake')
-
 # Kill the cluster
 stopCluster(cl)
+#colnames(allAUC) <- c('count', 'fake', 'real', 'accuracyOfFake')
+allAUC$facPlot <- paste(allAUC$Fold, allAUC$Status)
 
-# Now calculate a t.test between the null and the real distribution
-outStatFAFreq <- wilcox.test(x=allAUC[,2], y=allAUC[,3], paired=T, alternative='less')
-save.image(file='./fileName.RData')
+# Now make our plot
+p <- ggplot(allAUC, aes(x = x, y = y, group=facPlot, col=Status)) +
+geom_line(alpha=1/10, size=3) +
+theme_bw() +
+scale_fill_manual(values=c("Real"="Blue", "Fake"="Red")) +
+geom_abline (intercept = 0, slope = 1) +
+scale_x_continuous("1-Specificity") +
+scale_y_continuous("Sensitivity")
+
+# Now export the figure
+pdf("testBootFreq.pdf")
+print(p)
+dev.off()

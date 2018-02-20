@@ -42,7 +42,7 @@ all.data <- merge(img.data, mjData)
 all.data <- all.data[-which(all.data$dosage==1),]
 
 # Now prepare a sex specific values
-male.data <- all.data[which(all.data$sex==2),]
+male.data <- all.data[which(all.data$sex==1),]
 #male.data <- male.data[which(male.data$dosage == 0 | male.data$dosage > 5),]
 female.data <- all.data[which(all.data$sex==2),]
 
@@ -65,7 +65,7 @@ male.data.all.m <- male.data
 aucVals <- NULL
 registerDoMC(4)
 # tr
-male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
 #male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
 foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
 cvPredVals <- rep(NA, length(male.data$usageBin))
@@ -75,12 +75,12 @@ for(q in seq(1, length(foldsToLoop))){
     #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
     # Now build this model and
     # build a lasso model
-    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=T)
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
     print(optLam$lambda.min)
-    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
     print(lasModel$beta)
     #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
     
 }
 plot(roc(male.data$usageBin ~ cvPredVals), print.thres="best")
@@ -90,12 +90,14 @@ aucVals <- rbind(aucVals, c('tr', pROC::auc(roc(male.data$usageBin ~ cvPredVals)
 # Now prepare t values and roc values across these people
 valsOut <- NULL
 seqVals <- grep('dti_jlf_tr', names(male.data))
+#seqVals <- append(seqVals, grep('_dtitk_jhulabel', names(male.data)))
 for(q in seqVals){
   tVal <-t.test(male.data[,q]~usageBin, data=male.data)
   rocVal <- roc(usageBin~male.data[,q], data=male.data)
   outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
   valsOut <- rbind(valsOut, outputRow)
 }
+write.csv(valsOut, 'tValsandROCValsnonVsUser.csv', quote=F, row.names=F)
 
 # Now create a confusion matrix at our "best" cut off value
 cutVal <- coords(roc(male.data$usageBin ~ cvPredVals), 'best')
@@ -130,52 +132,9 @@ outMod <- glm(usageBin~., data=mod.reg.ds)
 toWrite <- summary(outMod)
 write.csv(toWrite$coefficients, 'maleTRCoefValues.csv', quote=F, row.names=T)
 
-# FA
-male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_dtitk_jhulabel_fa', names(male.data))]),]
-foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
-cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, length(foldsToLoop))){
-    index <- foldsToLoop[[q]]
-    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
-    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
-    # Now build this model and
-    # build a lasso model
-    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, family="binomial", parallel=T)
-    print(optLam$lambda.min)
-    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), type='response')
-    
-}
-plot(roc(male.data$usageBin ~ cvPredVals))
-pROC::auc(roc(male.data$usageBin ~ cvPredVals))
-aucVals <- rbind(aucVals, c('fa', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
-
-# Now do the fa labels
-seqVals <- grep('_dtitk_jhulabel', names(male.data))
-for(q in seqVals){
-    tVal <-t.test(male.data[,q]~usageBin, data=male.data)
-    rocVal <- roc(usageBin~male.data[,q], data=male.data)
-    outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
-    valsOut <- rbind(valsOut, outputRow)
-}
-
-# Now write the output
-write.csv(valsOut, 'tValsandROCValsnonVsUser.csv', quote=F, row.names=F)
-
-aucVals <- as.data.frame(aucVals)
-aucVals$V2 <- as.numeric(as.character(aucVals$V2))
-# Now plot the auc Values
-aucPlot <- ggplot(aucVals, aes(x=V1, y=as.numeric(as.character(V2)))) +
- geom_col()
-pdf('nonUserVsInFreqUser.pdf')
-print(aucPlot)
-dev.off()
-
 # Now write a demographics table
 # Before I wirte this though I have to get the deomgraphics from the freq users
 demo.vals <- summarySE(data=male.data, measurevar="ageAtScan1", groupvars="dosage")
-
 # Now write the color maps and all of that good stuff
 writeColorTableandKey(inputData=valsOut,inputColumn=2,outName='allValsA',minTmp=c(-1,0),maxTmp=c(.45,.8))
 writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='allValsT',minTmp=c(-3,0),maxTmp=c(0,3))
@@ -198,7 +157,7 @@ all.data <- all.data[-which(all.data$dosage==1),]
 all.data <- all.data[-which(is.na(all.data$dosage)),]
 
 # Now prepare a sex specific values
-male.data <- all.data[which(all.data$sex==2),]
+male.data <- all.data[which(all.data$sex==1),]
 female.data <- all.data[which(all.data$sex==2),]
 
 # Now add a binary matrix for use or no use
@@ -210,8 +169,7 @@ male.data.all.m <- male.data
 aucVals <- NULL
 registerDoMC(4)
 # tr
-male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_jlf_tr', names(male.data))]),]
-male.data <- male.data[,-grep('dti_jlf_tr_MeanTR', names(male.data))]
+male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
 foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
@@ -220,57 +178,30 @@ for(q in seq(1, length(foldsToLoop))){
     #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
     # Now build this model and
     # build a lasso model
-    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, family="binomial", parallel=T)
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
     print(optLam$lambda.min)
-    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_jlf_tr', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
+    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
     print(lasModel$beta)
     #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_jlf_tr_', names(male.data))]), type='response')
+    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
     
 }
-plot(roc(male.data$usageBin ~ cvPredVals))
+plot(roc(male.data$usageBin ~ cvPredVals), print.thres="best")
 pROC::auc(roc(male.data$usageBin ~ cvPredVals))
 aucVals <- rbind(aucVals, c('tr', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
 
 # Now prepare t values and roc values across these people
 valsOut <- NULL
 seqVals <- grep('dti_jlf_tr', names(male.data))
+seqVals <- append(seqVals, grep('_dtitk_jhulabel', names(male.data)))
 for(q in seqVals){
     tVal <-t.test(male.data[,q]~usageBin, data=male.data)
     rocVal <- roc(usageBin~male.data[,q], data=male.data)
     outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
     valsOut <- rbind(valsOut, outputRow)
 }
+write.csv(valsOut, 'tValsandROCValsuserVsFreqUser.csv', quote=F, row.names=F)
 
-# FA
-male.data <- male.data.all.m[complete.cases(male.data.all.m[,grep('dti_dtitk_jhulabel_fa', names(male.data))]),]
-foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
-cvPredVals <- rep(NA, length(male.data$usageBin))
-for(q in seq(1, length(foldsToLoop))){
-    index <- foldsToLoop[[q]]
-    #volMod <- buildStepROCModel(y=male.data$usageBin[-index], x=male.data[-index,grep('_jlf_vol_', names(male.data))], varAdd=6)
-    #outModel <- as.formula(paste('usageBin~', volMod[dim(volMod)[1],2]))
-    # Now build this model and
-    # build a lasso model
-    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, family="binomial", parallel=T)
-    print(optLam$lambda.min)
-    lasModel <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), alpha=0, lambda=optLam$lambda.min)
-    #tmpModel <- glm(outModel, data=male.data[-index,], family=binomial())
-    cvPredVals[index] <- predict(lasModel, newx=as.matrix(male.data[index,grep('dti_dtitk_jhulabel_fa', names(male.data))]), type='response')
-    
-}
-plot(roc(male.data$usageBin ~ cvPredVals))
-pROC::auc(roc(male.data$usageBin ~ cvPredVals))
-aucVals <- rbind(aucVals, c('fa', pROC::auc(roc(male.data$usageBin ~ cvPredVals))))
-
-# Now do the fa labels
-seqVals <- grep('_dtitk_jhulabel', names(male.data))
-for(q in seqVals){
-    tVal <-t.test(male.data[,q]~usageBin, data=male.data)
-    rocVal <- roc(usageBin~male.data[,q], data=male.data)
-    outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
-    valsOut <- rbind(valsOut, outputRow)
-}
 # Now create a confusion matrix at our "best" cut off value
 cutVal <- coords(roc(male.data$usageBin ~ cvPredVals), 'best')
 # Now grab our confusion matrix
