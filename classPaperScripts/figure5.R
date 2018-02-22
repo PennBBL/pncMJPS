@@ -54,29 +54,28 @@ female.data.all.m$usageBinOrig <- female.data.all.m$usageBin
 # Now lets make our bootstrapped male ROC curves
 cl <- makeCluster(8)
 registerDoParallel(cl)
-allAUCM <- foreach(z=seq(1,1000), .combine=rbind) %dopar%{
+allAUCM <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
-    male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    male.data <- male.data[,-grep('Lobe_WM', names(male.data))]
+    male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
     foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
         index <- foldsToLoop[[q]]
         # build a ridge model with the fake data
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel2 <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel2 <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
-        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
-        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
+        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
+        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(male.data[index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
         
     }
     # Now export the auc value to our bootstrapped AUC holder
@@ -100,29 +99,28 @@ p1 <- ggplot(allAUCM, aes(x = x, y = y, group=facPlot, col=Status)) +
   theme(legend.position="none")
 
 # Now do the female none vs usage
-allAUCF <- foreach(z=seq(1,1000), .combine=rbind) %dopar%{
+allAUCF <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     female.data.all.m$usageBin <- rbinom(dim(female.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
-    female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-    female.data <- female.data[,-grep('Lobe_WM', names(female.data))]
+    female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
     foldsToLoop <- createFolds(female.data$usageBin, table(female.data$usageBin)[2])
     cvPredVals <- rep(NA, length(female.data$usageBin))
     cvPredValsReal <- rep(NA, length(female.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
         index <- foldsToLoop[[q]]
         # build a ridge model with the fake data
-        optLam <- cv.glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel1 <- glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel1 <- glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
-        optLam <- cv.glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel2 <- glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel2 <- glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
         
-        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(female.data[index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
-        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(female.data[index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
+        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(female.data[index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
+        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(female.data[index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
         
     }
     # Now export the auc value to our bootstrapped AUC holder
@@ -174,29 +172,28 @@ female.data.all.m <- female.data
 propValueFemale <- table(female.data$usageBin)[2]/sum(table(female.data$usageBin))
 
 # Now run the loop for the males
-allAUCM <- foreach(z=seq(1,1000), .combine=rbind, .errorhandling='remove') %dopar%{
+allAUCM <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
-    male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    male.data <- male.data[,-grep('Lobe_WM', names(male.data))]
+    male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
     foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
         index <- foldsToLoop[[q]]
         # build a ridge model with the fake data
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel2 <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel2 <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
-        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
-        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(male.data[index,c(grep('dti_jlf_tr', names(male.data)),grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
+        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
+        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(male.data[index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
         
     }
     # Now export the auc value to our bootstrapped AUC holder
@@ -220,35 +217,34 @@ scale_y_continuous("Sensitivity") +
 theme(legend.position="none")
 
 # Now onto the females
-allAUCF <- foreach(z=seq(1,1000), .combine=rbind, .errorhandling='remove') %dopar%{
+allAUCF <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     female.data.all.m$usageBin <- rbinom(dim(female.data.all.m)[1], 1, propValueFemale)
     # Now lets see how well we can build our model in a cross validated fashion
-    female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-    female.data <- female.data[,-grep('Lobe_WM', names(female.data))]
+    female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
     foldsToLoop <- createFolds(female.data$usageBin, table(female.data$usageBin)[2])
     cvPredVals <- rep(NA, length(female.data$usageBin))
     cvPredValsReal <- rep(NA, length(female.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
         index <- foldsToLoop[[q]]
         # build a ridge model with the fake data
-        optLam <- cv.glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel1 <- glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel1 <- glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
-        optLam <- cv.glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
-        lasModel2 <- glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
+        optLam <- cv.glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
+        lasModel2 <- glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
         
-        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(female.data[index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
-        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(female.data[index,c(grep('dti_jlf_tr', names(female.data)),grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
+        cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(female.data[index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
+        cvPredVals[index] <- predict(lasModel1, newx=as.matrix(female.data[index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
         
     }
     # Now export the auc value to our bootstrapped AUC holder
-    outputValues <- cbind(rocdata(grp=binary.flip(female.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
+    outputValues <- cbind(rocdata(grp=female.data$usageBin,pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
-    outputValues2 <- cbind(rocdata(grp=binary.flip(female.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
+    outputValues2 <- cbind(rocdata(grp=female.data$usageBinOrig,pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
     outputValues <- rbind(outputValues, outputValues2)
     outputValues
