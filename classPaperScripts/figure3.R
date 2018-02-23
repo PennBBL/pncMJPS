@@ -62,4 +62,63 @@ for(q in seqVals){
     valsOut <- rbind(valsOut, outputRow)
 }
 # Now write an itk color table
-writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='allValsT',minTmp=c(-3,0),maxTmp=c(0,2))
+writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='maleNvUT',minTmp=c(-3,0),maxTmp=c(0,3))
+# Now female
+valsOut <- NULL
+seqVals <- grep('_dtitk_jhulabel', names(male.data))
+for(q in seqVals){
+    tVal <-t.test(female.data[,q]~usageBin, data=female.data)
+    rocVal <- roc(usageBin~female.data[,q], data=female.data)
+    outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
+    valsOut <- rbind(valsOut, outputRow)
+}
+# Now writ eht ecolor key
+writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='femaleNvUT',minTmp=c(-3,0),maxTmp=c(0,3))
+
+## Now onto the user vs frequent user
+mjData <- read.csv("../data/n9462_mj_ps_cnb_fortmm.csv")
+mjData$dosage <- NA
+mjData$dosage[which(mjData$marcat=='MJ Non-User')] <- 1
+mjData$dosage[which(mjData$marcat=='MJ User' & mjData$mjpastyr=='')] <- 1
+mjData$dosage[which(mjData$mjpastyr=="Less than once a month")] <- 2
+mjData$dosage[which(mjData$mjpastyr=="About once a month")] <- 3
+mjData$dosage[which(mjData$mjpastyr=="2-3 times a month")] <- 4
+mjData$dosage[which(mjData$mjpastyr=="1-2 times a week")] <- 5
+mjData$dosage[which(mjData$mjpastyr=="3-4 times a week")] <- 6
+mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 7
+
+# Now give us all the values
+all.data <- merge(img.data, mjData)
+all.data <- all.data[-which(all.data$dosage==1),]
+all.data <- all.data[-which(is.na(all.data$dosage)),]
+all.data$usageBin <- 0
+all.data$usageBin[all.data$dosage>=6] <- 1
+all.data$usageBinOrig <- all.data$usageBin
+
+# Now prepare a sex specific values
+male.data <- all.data[which(all.data$sex==1),]
+female.data <- all.data[which(all.data$sex==2),]
+
+# Now loop through each of the label values and grab a t value between the
+# users and the freq's
+valsOut <- NULL
+seqVals <- grep('_dtitk_jhulabel', names(male.data))
+for(q in seqVals){
+    tVal <-t.test(male.data[,q]~usageBin, data=male.data)
+    rocVal <- roc(usageBin~male.data[,q], data=male.data)
+    outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
+    valsOut <- rbind(valsOut, outputRow)
+}
+# Now write an itk color table
+writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='maleUvFT',minTmp=c(-3,0),maxTmp=c(0,4))
+# Now female
+valsOut <- NULL
+seqVals <- grep('_dtitk_jhulabel', names(male.data))
+for(q in seqVals){
+    tVal <-t.test(female.data[,q]~usageBin, data=female.data)
+    rocVal <- roc(usageBin~female.data[,q], data=female.data)
+    outputRow <- c(colnames(male.data)[q], as.numeric(rocVal$auc), tVal$statistic)
+    valsOut <- rbind(valsOut, outputRow)
+}
+# Now writ eht ecolor key
+writeColorTableandKey(inputData=valsOut,inputColumn=3,outName='femaleUvFT',minTmp=c(-3,0),maxTmp=c(0,4))
