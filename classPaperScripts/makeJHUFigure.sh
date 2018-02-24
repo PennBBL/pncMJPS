@@ -68,6 +68,7 @@ for lineValue in `seq 1 ${loopLength}` ; do
     quickCheck=`grep -c "${roiToGrep}" ${inputCSV}`
     if [ ${quickCheck} -gt 1 ] ; then 
       echo "Now fixing double match for ${roiToGrep}"
+      unset arrayName
       declare -a arrayName
       for variableName in `seq 1 ${quickCheck}` ; do
         tmpString=`echo ${valueToFind} | cut -f ${variableName} -d ' '`
