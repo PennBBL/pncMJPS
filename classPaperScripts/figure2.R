@@ -1,5 +1,11 @@
 ## Load library(s)
-install_load('ggplot2', 'grid', 'gridExtra', 'MatchIt', 'mgcv')
+install_load('ggplot2', 'grid', 'gridExtra', 'MatchIt', 'mgcv', 'reshape2')
+
+## Create a function
+swr = function(string, nwrap=30) {
+    paste(strwrap(string, width=nwrap), collapse="\n")
+}
+swr = Vectorize(swr)
 
 ## Load the data
 mjData <- read.csv("../data/n9462_mj_ps_cnb_fortmm.csv")
@@ -17,6 +23,9 @@ mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 7
 img.data <- read.csv('../data/imagingDataAll.csv')
 fa.data <- read.csv('../data/meanFAVals.csv')
 img.data <- merge(img.data, fa.data)
+
+# Now load the new names
+newNames <- read.csv('../data/labelNames.csv')
 
 # Now age regress the fa.data
 img.data$age <- img.data$ageAtScan1
@@ -62,6 +71,7 @@ female.data[,579:612] <- scale(female.data[,579:612])
 
 ## Now prepare our vaues for FA in the labels
 outVals <- NULL
+names(male.data)[572:619] <- as.character(newNames$Unclassified)
 allVals <- names(male.data)[572:619]
 vals <- c(4, 35, 36, 39, 21)
 inVals <- allVals[vals]
@@ -75,6 +85,7 @@ for(q in inVals){
 outVals$Gender <- 'Male'
 male.fa.vals <- outVals
 outVals <- NULL
+names(female.data)[572:619] <- as.character(newNames$Unclassified)
 for(q in inVals){
     tmpVal <- summarySE(female.data, measurevar=q, groupvars='marcat', na.rm=T)
     colnames(tmpVal)[3] <- 'mean'
@@ -86,18 +97,24 @@ outVals$Gender <- 'Female'
 female.fa.vals <- outVals
 fa.vals <- rbind(male.fa.vals, female.fa.vals)
 fa.vals$marcat <- factor(fa.vals$marcat, levels=c("MJ Non-User", "MJ User", "MJ Frequent User"))
+fa.vals$Marcat <- fa.vals$marcat
+fa.vals$ROI <- swr(fa.vals$ROI)
 
 ## Now plot these values
-outPlot <- ggplot(fa.vals, aes(x=marcat, y=mean, fill=marcat)) +
+outPlot <- ggplot(fa.vals, aes(x=Marcat, y=mean, fill=Marcat)) +
   geom_bar(stat='identity', position=position_dodge(), size=.1) +
-  labs(title="", x="MARCAT", y="Mean FA (z-score)") +
+  labs(title="", x="", y="Mean FA (z-score)") +
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1, position=position_dodge(.9)) +
   theme_bw() +
   facet_grid(Gender~ROI, scales="free") +
-  theme(legend.position="none",
+  theme(legend.position="right",
   axis.text.x = element_blank(),
   axis.text.y = element_text(size=16, face="bold"),
-  axis.ticks.x=element_blank())
+  axis.ticks.x=element_blank(),
+  axis.title=element_text(size=16,face="bold", angle=180),
+  strip.text.y = element_text(size = 16, angle = 270, face="bold"),
+  strip.text.x = element_text(size = 16, angle = 0, face="bold"),
+  panel.spacing = unit(2, "lines")) + scale_fill_grey()
 
 # Now print the output
 png('figure2-marcatMeanValues.png', height=12, width=20, units='in', res=300)

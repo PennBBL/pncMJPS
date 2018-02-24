@@ -119,7 +119,7 @@ returnPosNegAndNeuColorScale <- function(outputZScores, colorScaleNeg=c('blue', 
 writeColorTableandKey <- function(inputData, inputColumn, outName, minTmp=NULL, maxTmp=NULL){
     # First create the color table
     tmpColorTable <- returnPosNegAndNeuColorScale(inputData[complete.cases(inputData[,inputColumn]),inputColumn], colorScaleNeg=c('light blue'), colorScalePos=c('orange', 'yellow', 'white'), sigThreshold=1, minimum=minTmp, maximum=maxTmp)
-    valuesToBind <- c('1616', '190', '190', '190', '0.40', '1', '1', '"Label Nonsense"')
+    valuesToBind <- c('1616', '190', '190', '190', '0.20', '1', '1', '"Label Nonsense"')
     
     # Now produce the output key
     tmpOutputKey <- matrix(NA, nrow=dim(tmpColorTable)[1]-1, ncol=3)
