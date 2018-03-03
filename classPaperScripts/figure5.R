@@ -41,6 +41,8 @@ male.data <- rbind(male.data, male.data.all[which(male.data.all$usageBin==1),])
 male.data.all.m <- male.data
 propValueMale <- table(male.data$usageBin)[2]/sum(table(male.data$usageBin))
 male.data.all.m$usageBinOrig <- male.data.all.m$usageBin
+output <- male.data.all.m[,c('bblid', 'scanid')]
+write.csv(output, "maleIDValues.csv", quote=F, row.names=F)
 
 # Now do female
 tmpDat <- female.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
@@ -52,11 +54,13 @@ female.data <- rbind(female.data, female.data.all[which(female.data.all$usageBin
 female.data.all.m <- female.data
 propValueFemale <- table(female.data$usageBin)[2]/sum(table(female.data$usageBin))
 female.data.all.m$usageBinOrig <- female.data.all.m$usageBin
+output <- female.data.all.m[,c('bblid', 'scanid')]
+write.csv(output, "femaleIDValues.csv", quote=F, row.names=F)
 
 # Now lets make our bootstrapped male ROC curves
-cl <- makeCluster(8)
+cl <- makeCluster(2)
 registerDoParallel(cl)
-allAUCM <- foreach(z=seq(1,20), .combine=rbind) %dopar%{
+allAUCM <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
@@ -107,15 +111,23 @@ p1 <- ggplot(allAUCM, aes(x = x, y = y, group=facPlot, col=Status)) +
   theme(legend.position="none")
 
 # Now make a histogram for the AUC values
-colnames(aucOutM) <- c("AUC", "Real", "AUC", "Fake")
-aucOutM$Real <- round(as.numeric(as.character(aucOutM$Real)), digits=3)
-aucOutM$Fake <- round(as.numeric(as.character(aucOutM$Fake)), digits=3)
-h1 <- ggplot(aucOutM) +
-  geom_histogram(aes(col="red", x=Fake), stat='count', bins=20) +
-  geom_histogram(aes(col="blue", x=Real), stat='count', bins=20)
+colnames(aucOutM) <- c("AUC", "Val", "AUC", "Val")
+aucOutM[,2] <- round(as.numeric(as.character(aucOutM[,2])), digits=3)
+aucOutM[,4] <- round(as.numeric(as.character(aucOutM[,4])), digits=3)
+# Now perform a t.test between the two AUC values
+outDiffM <- t.test(aucOutM[,2] , aucOutM[,4], paired=T, alternative='greater')
+# Now prepare the data for ggplot
+tmp1 <- cbind(aucOutM[,1:2])
+tmp1$Status <- "Real"
+tmp2 <- cbind(aucOutM[,3:4])
+tmp2$Status <- "Fake"
+histData <- rbind(tmp1, tmp2)
+histData <- histData[-which(histData[,2]==1),]
+h1 <- ggplot(histData, aes(x=Val, fill=Status)) +
+  geom_histogram()
 
 # Now do the female none vs usage
-allAUCF <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
+allAUCF <- foreach(z=seq(1,10), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
@@ -144,11 +156,13 @@ allAUCF <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
     outputValues2 <- cbind(rocdata(grp=binary.flip(female.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
-    outputValues3 <- rbind(c("AUC", pROC::auc(roc(male.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(male.data$usageBin~cvPredVals))))
+    outputValues3 <- rbind(c("AUC", pROC::auc(roc(female.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(female.data$usageBin~cvPredVals))))
     colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
     outputValues <- rbind(outputValues, outputValues2, outputValues3)
     outputValues
 }
+aucOutF <- allAUCF[grep("AUC", allAUCF[,1]),]
+allAUCF <- allAUCF[-grep("AUC", allAUCF[,1]),]
 
 # Now prepare a plot
 allAUCF$facPlot <- paste(allAUCF$Fold, allAUCF$Status)
@@ -162,6 +176,23 @@ p2 <- ggplot(allAUCF, aes(x = x, y = y, group=facPlot, col=Status)) +
   scale_x_continuous("1-Specificity") +
   scale_y_continuous("Sensitivity") +
   theme(legend.position="none")
+
+# Now make a histogram for the AUC values
+colnames(aucOutF) <- c("AUC", "Val", "AUC", "Val")
+aucOutF[,2] <- round(as.numeric(as.character(aucOutF[,2])), digits=3)
+aucOutF[,4] <- round(as.numeric(as.character(aucOutF[,4])), digits=3)
+# Now perform a t.test between the two AUC values
+outDiffF <- t.test(aucOutF[,2] , aucOutF[,4], paired=T, alternative='greater')
+# Now prepare the data for ggplot
+tmp1 <- cbind(aucOutF[,1:2])
+tmp1$Status <- "Real"
+tmp2 <- cbind(aucOutF[,3:4])
+tmp2$Status <- "Fake"
+histData <- rbind(tmp1, tmp2)
+histData <- histData[-which(histData[,2]==1),]
+h1 <- ggplot(histData, aes(x=as.numeric(as.character(Val)), fill=Status)) +
+geom_histogram()
+
 
 ## Now move on to the user vs frequent user!
 mjData <- read.csv("../data/n9462_mj_ps_cnb_fortmm.csv")
