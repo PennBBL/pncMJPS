@@ -32,7 +32,8 @@ female.data <- all.data[which(all.data$sex==2),]
 
 # Now create our age matched samples
 # Starting with male
-tmpDat <- male.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES')]
+tmpDat <- male.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
+tmpDat <- tmpDat[complete.cases(tmpDat),]
 mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=na.omit)
 male.data.all <- male.data
 male.data <- male.data[as.vector(mod$match.matrix),]
@@ -42,7 +43,8 @@ propValueMale <- table(male.data$usageBin)[2]/sum(table(male.data$usageBin))
 male.data.all.m$usageBinOrig <- male.data.all.m$usageBin
 
 # Now do female
-tmpDat <- female.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES')]
+tmpDat <- female.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
+tmpDat <- tmpDat[complete.cases(tmpDat),]
 mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=na.omit)
 female.data.all <- female.data
 female.data <- female.data[as.vector(mod$match.matrix),]
@@ -54,14 +56,14 @@ female.data.all.m$usageBinOrig <- female.data.all.m$usageBin
 # Now lets make our bootstrapped male ROC curves
 cl <- makeCluster(8)
 registerDoParallel(cl)
-allAUCM <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
+allAUCM <- foreach(z=seq(1,20), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+    foldsToLoop <- createFolds(male.data$usageBin, k=dim(male.data)[1])
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
@@ -83,12 +85,18 @@ allAUCM <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
     outputValues2 <- cbind(rocdata(grp=binary.flip(male.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
-    outputValues <- rbind(outputValues, outputValues2)
+    outputValues3 <- rbind(c("AUC", pROC::auc(roc(male.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(male.data$usageBin~cvPredVals))))
+    colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
+    outputValues <- rbind(outputValues, outputValues2, outputValues3)
     outputValues
 }
+aucOutM <- allAUCM[grep("AUC", allAUCM[,1]),]
+allAUCM <- allAUCM[-grep("AUC", allAUCM[,1]),]
 
 # Now prepare a plot
 allAUCM$facPlot <- paste(allAUCM$Fold, allAUCM$Status)
+allAUCM$x <- as.numeric(as.character(allAUCM$x))
+allAUCM$y <- as.numeric(as.character(allAUCM$y))
 p1 <- ggplot(allAUCM, aes(x = x, y = y, group=facPlot, col=Status)) +
   geom_line(alpha=1/10, size=3) +
   theme_bw() +
@@ -97,6 +105,14 @@ p1 <- ggplot(allAUCM, aes(x = x, y = y, group=facPlot, col=Status)) +
   scale_x_continuous("1-Specificity") +
   scale_y_continuous("Sensitivity") +
   theme(legend.position="none")
+
+# Now make a histogram for the AUC values
+colnames(aucOutM) <- c("AUC", "Real", "AUC", "Fake")
+aucOutM$Real <- round(as.numeric(as.character(aucOutM$Real)), digits=3)
+aucOutM$Fake <- round(as.numeric(as.character(aucOutM$Fake)), digits=3)
+h1 <- ggplot(aucOutM) +
+  geom_histogram(aes(col="red", x=Fake), stat='count', bins=20) +
+  geom_histogram(aes(col="blue", x=Real), stat='count', bins=20)
 
 # Now do the female none vs usage
 allAUCF <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
@@ -128,12 +144,16 @@ allAUCF <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
     outputValues2 <- cbind(rocdata(grp=binary.flip(female.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
-    outputValues <- rbind(outputValues, outputValues2)
+    outputValues3 <- rbind(c("AUC", pROC::auc(roc(male.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(male.data$usageBin~cvPredVals))))
+    colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
+    outputValues <- rbind(outputValues, outputValues2, outputValues3)
     outputValues
 }
 
 # Now prepare a plot
 allAUCF$facPlot <- paste(allAUCF$Fold, allAUCF$Status)
+allAUCF$x <- as.numeric(as.character(allAUCF$x))
+allAUCF$y <- as.numeric(as.character(allAUCF$y))
 p2 <- ggplot(allAUCF, aes(x = x, y = y, group=facPlot, col=Status)) +
   geom_line(alpha=1/10, size=3) +
   theme_bw() +
