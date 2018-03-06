@@ -252,7 +252,9 @@ allAUCM <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
     outputValues2 <- cbind(rocdata(grp=binary.flip(male.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
-    outputValues <- rbind(outputValues, outputValues2)
+    outputValues3 <- rbind(c("AUC", pROC::auc(roc(male.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(male.data$usageBin~cvPredVals))))
+    colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
+    outputValues <- rbind(outputValues, outputValues2, outputValues3)
     outputValues
 }
 
@@ -266,6 +268,22 @@ p3 <- ggplot(allAUCM, aes(x = x, y = y, group=facPlot, col=Status)) +
   scale_x_continuous("1-Specificity") +
 scale_y_continuous("Sensitivity") +
 theme(legend.position="none")
+
+# Now make a histogram for the AUC values
+colnames(aucOutM) <- c("AUC", "Val", "AUC", "Val")
+aucOutM[,2] <- round(as.numeric(as.character(aucOutM[,2])), digits=3)
+aucOutM[,4] <- round(as.numeric(as.character(aucOutM[,4])), digits=3)
+# Now perform a t.test between the two AUC values
+outDiffM <- t.test(aucOutM[,2] , aucOutM[,4], paired=T, alternative='greater')
+# Now prepare the data for ggplot
+tmp1 <- cbind(aucOutM[,1:2])
+tmp1$Status <- "Real"
+tmp2 <- cbind(aucOutM[,3:4])
+tmp2$Status <- "Fake"
+histData <- rbind(tmp1, tmp2)
+histData <- histData[-which(histData[,2]==1),]
+h3 <- ggplot(histData, aes(x=Val, fill=Status)) +
+geom_histogram()
 
 # Now onto the females
 allAUCF <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar%{
@@ -297,7 +315,9 @@ allAUCF <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
     outputValues2 <- cbind(rocdata(grp=female.data$usageBinOrig,pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
-    outputValues <- rbind(outputValues, outputValues2)
+    outputValues3 <- rbind(c("AUC", pROC::auc(roc(female.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(female.data$usageBin~cvPredVals))))
+    colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
+    outputValues <- rbind(outputValues, outputValues2, outputValues3)
     outputValues
 }
 # Kill the cluster
@@ -314,7 +334,24 @@ p4 <- ggplot(allAUCF, aes(x = x, y = y, group=facPlot, col=Status)) +
   scale_y_continuous("Sensitivity") +
   theme(legend.position="none")
 
+# Now make a histogram for the AUC values
+colnames(aucOutF) <- c("AUC", "Val", "AUC", "Val")
+aucOutF[,2] <- round(as.numeric(as.character(aucOutF[,2])), digits=3)
+aucOutF[,4] <- round(as.numeric(as.character(aucOutF[,4])), digits=3)
+# Now perform a t.test between the two AUC values
+outDiffF <- t.test(aucOutF[,2] , aucOutF[,4], paired=T, alternative='greater')
+# Now prepare the data for ggplot
+tmp1 <- cbind(aucOutF[,1:2])
+tmp1$Status <- "Real"
+tmp2 <- cbind(aucOutF[,3:4])
+tmp2$Status <- "Fake"
+histData <- rbind(tmp1, tmp2)
+histData <- histData[-which(histData[,2]==1),]
+h4 <- ggplot(histData, aes(x=as.numeric(as.character(Val)), fill=Status)) +
+geom_histogram()
+
 # Now combine all of the plots
 pdf("testOut.pdf", height=20, width=20)
 multiplot(p1, p2, p3, p4, cols=2)
+multiplot(h1, h2, h3, h4, cols=2)
 dev.off()
