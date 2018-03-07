@@ -5,7 +5,8 @@
 
 # The first step is a for loop to put all of the images into the proper directory
 # First declare the statics
-inputID="/home/arosen/pncMJPS/classPaperScripts/maleIDValues.csv"
+#inputID="/home/arosen/pncMJPS/classPaperScripts/maleIDValues.csv"
+inputID="/home/arosen/pncMJPS/classPaperScripts/allIDValues.csv"
 inputData="/data/joy/BBL/studies/pnc/processedData/diffusion/pncDTI_2016_04"
 outputData="/data/joy/BBL/projects/pncMJPS/data/mytbss/"
 
@@ -21,7 +22,7 @@ for i in `seq 2 ${loopLength}` ; do
 
   # Now if the image exists link it to our output file
   if [ -f ${inputImg} ] ; then
-    ln ${inputImg} ${outputData}/${bblid}_${scanid}_FA.nii.gz ;
+    ln ${inputImg} ${outputData}/${i}_${bblid}_${scanid}_FA.nii.gz ;
   fi
 
   # Now echo something out so I know I am running
@@ -39,4 +40,14 @@ tbss_2_reg -T
 
 ## The regeistration takes about 10 min per subject
 ## Lets round up to 15 and wait that amount of time
+tbss_3_postreg -T
 
+## Now prepare for the voxel wise analysis
+tbss_4_prestats .2
+
+# Now here is the voxelwise wrapper call
+# The first will have an interaction between dosage and sex
+Rscript /data/joy/BBL/applications/groupAnalysis/lm_voxelwise.R -c /data/joy/BBL/projects/pncMJPS/data/mytbss/subjectData.RDS -o /data/joy/BBL/projects/pncMJPS/data/mytbss/ -p "pathVals" -m /data/joy/BBL/projects/pncMJPS/data/mytbss/stats/mean_FA_skeleton_mask.nii.gz -s 0 -i include -u bblid -n 1 -d TRUE -f "~ age+age2+age3+sex*dosage+dti64Tsnr" -r TRUE -a fdr
+
+## This guy has a main effect of sex and dosage... no interaction
+Rscript /data/joy/BBL/applications/groupAnalysis/lm_voxelwise.R -c /data/joy/BBL/projects/pncMJPS/data/mytbss/subjectData.RDS -o /data/joy/BBL/projects/pncMJPS/data/mytbss/ -p "pathVals" -m /data/joy/BBL/projects/pncMJPS/data/mytbss/stats/mean_FA_skeleton_mask.nii.gz -s 0 -i include -u bblid -n 1 -d TRUE -f "~ age+age2+age3+sex+dosage+dti64Tsnr" -r TRUE -a fdr
