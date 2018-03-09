@@ -114,7 +114,7 @@ outPlot <- ggplot(fa.vals, aes(x=Marcat, y=mean, fill=Marcat)) +
   axis.title=element_text(size=16,face="bold", angle=180),
   strip.text.y = element_text(size = 16, angle = 270, face="bold"),
   strip.text.x = element_text(size = 16, angle = 0, face="bold"),
-  panel.spacing = unit(2, "lines")) + scale_fill_grey()
+panel.spacing = unit(2, "lines"))# + scale_fill_grey()
 
 # Now print the output
 png('figure2-marcatMeanValues.png', height=12, width=20, units='in', res=300)

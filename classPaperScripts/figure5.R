@@ -34,7 +34,7 @@ female.data <- all.data[which(all.data$sex==2),]
 # Starting with male
 tmpDat <- male.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
 tmpDat <- tmpDat[complete.cases(tmpDat),]
-mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=na.omit)
+mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=1, na.action=na.omit)
 male.data.all <- male.data
 male.data <- male.data[as.vector(mod$match.matrix),]
 male.data <- rbind(male.data, male.data.all[which(male.data.all$usageBin==1),])
@@ -47,7 +47,7 @@ write.csv(output, "maleIDValues.csv", quote=F, row.names=F)
 # Now do female
 tmpDat <- female.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
 tmpDat <- tmpDat[complete.cases(tmpDat),]
-mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=na.omit)
+mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=1, na.action=na.omit)
 female.data.all <- female.data
 female.data <- female.data[as.vector(mod$match.matrix),]
 female.data <- rbind(female.data, female.data.all[which(female.data.all$usageBin==1),])
@@ -58,22 +58,22 @@ output <- female.data.all.m[,c('bblid', 'scanid')]
 write.csv(output, "femaleIDValues.csv", quote=F, row.names=F)
 
 # Now lets make our bootstrapped male ROC curves
-cl <- makeCluster(2)
+cl <- makeCluster(8)
 registerDoParallel(cl)
-allAUCM <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
+allAUCM <- foreach(z=seq(1,100), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    foldsToLoop <- createFolds(male.data$usageBin, k=dim(male.data)[1])
+    foldsToLoop <- createFolds(male.data$usageBin, 10)
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
         index <- foldsToLoop[[q]]
         # build a ridge model with the fake data
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=F)
         lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
@@ -85,9 +85,9 @@ allAUCM <- foreach(z=seq(1,300), .combine=rbind) %dopar%{
         
     }
     # Now export the auc value to our bootstrapped AUC holder
-    outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
+    outputValues <- cbind(rocdata(grp=male.data$usageBin,pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
-    outputValues2 <- cbind(rocdata(grp=binary.flip(male.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
+    outputValues2 <- cbind(rocdata(grp=male.data$usageBinOrig,pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
     outputValues3 <- rbind(c("AUC", pROC::auc(roc(male.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(male.data$usageBin~cvPredVals))))
     colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
@@ -122,19 +122,23 @@ tmp1$Status <- "Real"
 tmp2 <- cbind(aucOutM[,3:4])
 tmp2$Status <- "Fake"
 histData <- rbind(tmp1, tmp2)
-histData <- histData[-which(histData[,2]==1),]
-h1 <- ggplot(histData, aes(x=Val, fill=Status)) +
-  geom_histogram()
+h1 <- ggplot(histData) +
+  geom_histogram(data=tmp1, aes(x=Val, fill='red'), alpha=.3) +
+  geom_histogram(data=tmp2, aes(x=Val, fill='bue'), alpha=.3) +
+  xlim(c(.35,.9)) +
+  ylim(c(0,150)) +
+  theme_bw() +
+  theme(legend.position="none")
 
 # Now do the female none vs usage
-allAUCF <- foreach(z=seq(1,10), .combine=rbind) %dopar%{
+allAUCF <- foreach(z=seq(1,100), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     female.data.all.m$usageBin <- rbinom(dim(female.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-    foldsToLoop <- createFolds(female.data$usageBin, table(female.data$usageBin)[2])
+    foldsToLoop <- createFolds(female.data$usageBin, 10)
     cvPredVals <- rep(NA, length(female.data$usageBin))
     cvPredValsReal <- rep(NA, length(female.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
@@ -144,17 +148,18 @@ allAUCF <- foreach(z=seq(1,10), .combine=rbind) %dopar%{
         lasModel1 <- glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
-        optLam <- cv.glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
+        optLam <- cv.glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=F)
         lasModel2 <- glmnet(y=as.vector(female.data$usageBinOrig[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(female.data[index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
         cvPredVals[index] <- predict(lasModel1, newx=as.matrix(female.data[index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), type='response')
         
     }
+    roc(female.data$usageBinOrig ~ cvPredValsReal)
     # Now export the auc value to our bootstrapped AUC holder
-    outputValues <- cbind(rocdata(grp=binary.flip(female.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
+    outputValues <- cbind(rocdata(grp=female.data$usageBin,pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
-    outputValues2 <- cbind(rocdata(grp=binary.flip(female.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
+    outputValues2 <- cbind(rocdata(grp=female.data$usageBinOrig,pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
     outputValues3 <- rbind(c("AUC", pROC::auc(roc(female.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(female.data$usageBin~cvPredVals))))
     colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
@@ -189,9 +194,13 @@ tmp1$Status <- "Real"
 tmp2 <- cbind(aucOutF[,3:4])
 tmp2$Status <- "Fake"
 histData <- rbind(tmp1, tmp2)
-histData <- histData[-which(histData[,2]==1),]
-h1 <- ggplot(histData, aes(x=as.numeric(as.character(Val)), fill=Status)) +
-geom_histogram()
+h2 <- ggplot(histData) +
+  geom_histogram(data=tmp1, aes(x=Val, fill='red'), alpha=.3) +
+  geom_histogram(data=tmp2, aes(x=Val, fill='blue'), alpha=.3) +
+  xlim(c(.35,.9)) +
+  ylim(c(0,150)) +
+  theme_bw() +
+  theme(legend.position="none")
 
 
 ## Now move on to the user vs frequent user!
@@ -223,20 +232,20 @@ female.data.all.m <- female.data
 propValueFemale <- table(female.data$usageBin)[2]/sum(table(female.data$usageBin))
 
 # Now run the loop for the males
-allAUCM <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar%{
+allAUCM <- foreach(z=seq(1,100), .combine=rbind, .errorhandling='remove') %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+    foldsToLoop <- createFolds(male.data$usageBin, 10)
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
         index <- foldsToLoop[[q]]
         # build a ridge model with the fake data
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=F)
         lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
@@ -248,15 +257,22 @@ allAUCM <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar
         
     }
     # Now export the auc value to our bootstrapped AUC holder
-    outputValues <- cbind(rocdata(grp=binary.flip(male.data$usageBin),pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
+    outputValues <- cbind(rocdata(grp=male.data$usageBin,pred=cvPredVals)$roc,rep(z,length(cvPredVals)), rep('Fake', length(cvPredVals)))
     colnames(outputValues) <- c('x', 'y', 'Fold', 'Status')
-    outputValues2 <- cbind(rocdata(grp=binary.flip(male.data$usageBinOrig),pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
+    outputValues2 <- cbind(rocdata(grp=male.data$usageBinOrig,pred=cvPredValsReal)$roc,rep(z,length(cvPredVals)), rep('Real', length(cvPredVals)))
     colnames(outputValues2) <- c('x', 'y', 'Fold', 'Status')
     outputValues3 <- rbind(c("AUC", pROC::auc(roc(male.data$usageBinOrig~cvPredValsReal)), "AUC", pROC::auc(roc(male.data$usageBin~cvPredVals))))
     colnames(outputValues3) <- c('x', 'y', 'Fold', 'Status')
     outputValues <- rbind(outputValues, outputValues2, outputValues3)
     outputValues
 }
+aucOutM <- allAUCM[grep("AUC", allAUCM[,1]),]
+allAUCM <- allAUCM[-grep("AUC", allAUCM[,1]),]
+
+# Now prepare a plot
+allAUCM$facPlot <- paste(allAUCM$Fold, allAUCM$Status)
+allAUCM$x <- as.numeric(as.character(allAUCM$x))
+allAUCM$y <- as.numeric(as.character(allAUCM$y))
 
 # Now prepare a plot
 allAUCM$facPlot <- paste(allAUCM$Fold, allAUCM$Status)
@@ -281,25 +297,29 @@ tmp1$Status <- "Real"
 tmp2 <- cbind(aucOutM[,3:4])
 tmp2$Status <- "Fake"
 histData <- rbind(tmp1, tmp2)
-histData <- histData[-which(histData[,2]==1),]
-h3 <- ggplot(histData, aes(x=Val, fill=Status)) +
-geom_histogram()
+h3 <- ggplot(histData) +
+  geom_histogram(data=tmp1, aes(x=Val, fill='red'), alpha=.3) +
+  geom_histogram(data=tmp2, aes(x=Val, fill='blue'), alpha=.3) +
+  xlim(c(.35,.9)) +
+  ylim(c(0,150)) +
+  theme_bw() +
+  theme(legend.position="none")
 
 # Now onto the females
-allAUCF <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar%{
+allAUCF <- foreach(z=seq(1,100), .combine=rbind, .errorhandling='remove') %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     female.data.all.m$usageBin <- rbinom(dim(female.data.all.m)[1], 1, propValueFemale)
     # Now lets see how well we can build our model in a cross validated fashion
     female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-    foldsToLoop <- createFolds(female.data$usageBin, table(female.data$usageBin)[2])
+    foldsToLoop <- createFolds(female.data$usageBin, 10)
     cvPredVals <- rep(NA, length(female.data$usageBin))
     cvPredValsReal <- rep(NA, length(female.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
         index <- foldsToLoop[[q]]
         # build a ridge model with the fake data
-        optLam <- cv.glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=T)
+        optLam <- cv.glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, family="binomial", parallel=F)
         lasModel1 <- glmnet(y=as.vector(female.data$usageBin[-index]), x=as.matrix(female.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
@@ -322,6 +342,13 @@ allAUCF <- foreach(z=seq(1,300), .combine=rbind, .errorhandling='remove') %dopar
 }
 # Kill the cluster
 stopCluster(cl)
+aucOutF <- allAUCF[grep("AUC", allAUCF[,1]),]
+allAUCF <- allAUCF[-grep("AUC", allAUCF[,1]),]
+
+# Now prepare a plot
+allAUCF$facPlot <- paste(allAUCF$Fold, allAUCF$Status)
+allAUCF$x <- as.numeric(as.character(allAUCF$x))
+allAUCF$y <- as.numeric(as.character(allAUCF$y))
 
 # Now prepare a plot
 allAUCF$facPlot <- paste(allAUCF$Fold, allAUCF$Status)
@@ -346,12 +373,23 @@ tmp1$Status <- "Real"
 tmp2 <- cbind(aucOutF[,3:4])
 tmp2$Status <- "Fake"
 histData <- rbind(tmp1, tmp2)
-histData <- histData[-which(histData[,2]==1),]
-h4 <- ggplot(histData, aes(x=as.numeric(as.character(Val)), fill=Status)) +
-geom_histogram()
+h4 <- ggplot(histData) +
+  geom_histogram(data=tmp1, aes(x=Val, fill='red'), alpha=.3) +
+  geom_histogram(data=tmp2, aes(x=Val, fill='blue'), alpha=.3) +
+  xlim(c(.35,.9)) +
+  ylim(c(0,150)) +
+  theme_bw() +
+  theme(legend.position="none")
 
 # Now combine all of the plots
-pdf("testOut.pdf", height=20, width=20)
+png("figure5.png", height=20, width=20, units='in', res=300)
 multiplot(p1, p2, p3, p4, cols=2)
-multiplot(h1, h2, h3, h4, cols=2)
+dev.off()
+
+# Now export the histograms
+pdf("histImages.pdf")
+h1
+h2
+h3
+h4
 dev.off()

@@ -49,7 +49,7 @@ female.data.all.m <- female.data
 
 # Now create a CV ridge reg model prediction stats
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+foldsToLoop <- createFolds(male.data$usageBin, k=table(male.data$usageBin)[2])
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]

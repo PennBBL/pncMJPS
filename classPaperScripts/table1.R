@@ -35,9 +35,7 @@ mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=n
 male.data.all <- male.data
 male.data <- male.data[as.vector(mod$match.matrix),]
 male.data <- rbind(male.data, male.data.all[which(male.data.all$usageBin==1),])
-male.data.all.m <- male.data
-propValueMale <- table(male.data$usageBin)[2]/sum(table(male.data$usageBin))
-male.data.all.m$usageBinOrig <- male.data.all.m$usageBin
+male.data <- male.data[complete.cases(male.data[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
 
 # Now do female
 tmpDat <- female.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES')]
@@ -45,9 +43,7 @@ mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=n
 female.data.all <- female.data
 female.data <- female.data[as.vector(mod$match.matrix),]
 female.data <- rbind(female.data, female.data.all[which(female.data.all$usageBin==1),])
-female.data.all.m <- female.data
-propValueFemale <- table(female.data$usageBin)[2]/sum(table(female.data$usageBin))
-female.data.all.m$usageBinOrig <- female.data.all.m$usageBin
+female.data <- female.data[complete.cases(female.data[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
 
 # Before I wirte this though I have to get the deomgraphics from the freq users
 demo.vals.male <- summarySE(data=male.data, measurevar="ageAtScan1", groupvars="marcat")
