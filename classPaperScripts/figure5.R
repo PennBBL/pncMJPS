@@ -34,7 +34,7 @@ female.data <- all.data[which(all.data$sex==2),]
 # Starting with male
 tmpDat <- male.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
 tmpDat <- tmpDat[complete.cases(tmpDat),]
-mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=1, na.action=na.omit)
+mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=na.omit)
 male.data.all <- male.data
 male.data <- male.data[as.vector(mod$match.matrix),]
 male.data <- rbind(male.data, male.data.all[which(male.data.all$usageBin==1),])
@@ -60,14 +60,14 @@ write.csv(output, "femaleIDValues.csv", quote=F, row.names=F)
 # Now lets make our bootstrapped male ROC curves
 cl <- makeCluster(8)
 registerDoParallel(cl)
-allAUCM <- foreach(z=seq(1,100), .combine=rbind) %dopar%{
+allAUCM <- foreach(z=seq(1,1000), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    foldsToLoop <- createFolds(male.data$usageBin, 10)
+    foldsToLoop <- createFolds(male.data$usageBin, 25)
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
@@ -77,7 +77,7 @@ allAUCM <- foreach(z=seq(1,100), .combine=rbind) %dopar%{
         lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         # Now do the real labels
-        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=T)
+        optLam <- cv.glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=F)
         lasModel2 <- glmnet(y=as.vector(male.data$usageBinOrig[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
         
         cvPredValsReal[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
@@ -113,6 +113,7 @@ p1 <- ggplot(allAUCM, aes(x = x, y = y, group=facPlot, col=Status)) +
 # Now make a histogram for the AUC values
 colnames(aucOutM) <- c("AUC", "Val", "AUC", "Val")
 aucOutM[,2] <- round(as.numeric(as.character(aucOutM[,2])), digits=3)
+out1 <- summary(aucOutM)[,2]
 aucOutM[,4] <- round(as.numeric(as.character(aucOutM[,4])), digits=3)
 # Now perform a t.test between the two AUC values
 outDiffM <- t.test(aucOutM[,2] , aucOutM[,4], paired=T, alternative='greater')
@@ -131,14 +132,14 @@ h1 <- ggplot(histData) +
   theme(legend.position="none")
 
 # Now do the female none vs usage
-allAUCF <- foreach(z=seq(1,100), .combine=rbind) %dopar%{
+allAUCF <- foreach(z=seq(1,1000), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     female.data.all.m$usageBin <- rbinom(dim(female.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-    foldsToLoop <- createFolds(female.data$usageBin, 10)
+    foldsToLoop <- createFolds(female.data$usageBin, 20)
     cvPredVals <- rep(NA, length(female.data$usageBin))
     cvPredValsReal <- rep(NA, length(female.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
@@ -185,6 +186,7 @@ p2 <- ggplot(allAUCF, aes(x = x, y = y, group=facPlot, col=Status)) +
 # Now make a histogram for the AUC values
 colnames(aucOutF) <- c("AUC", "Val", "AUC", "Val")
 aucOutF[,2] <- round(as.numeric(as.character(aucOutF[,2])), digits=3)
+out2 <- summary(aucOutF)[,2]
 aucOutF[,4] <- round(as.numeric(as.character(aucOutF[,4])), digits=3)
 # Now perform a t.test between the two AUC values
 outDiffF <- t.test(aucOutF[,2] , aucOutF[,4], paired=T, alternative='greater')
@@ -232,14 +234,14 @@ female.data.all.m <- female.data
 propValueFemale <- table(female.data$usageBin)[2]/sum(table(female.data$usageBin))
 
 # Now run the loop for the males
-allAUCM <- foreach(z=seq(1,100), .combine=rbind, .errorhandling='remove') %dopar%{
+allAUCM <- foreach(z=seq(1,1000), .combine=rbind, .errorhandling='remove') %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    foldsToLoop <- createFolds(male.data$usageBin, 10)
+    foldsToLoop <- createFolds(male.data$usageBin, 20)
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){
@@ -288,6 +290,7 @@ theme(legend.position="none")
 # Now make a histogram for the AUC values
 colnames(aucOutM) <- c("AUC", "Val", "AUC", "Val")
 aucOutM[,2] <- round(as.numeric(as.character(aucOutM[,2])), digits=3)
+out3 <- summary(aucOutM)[,2]
 aucOutM[,4] <- round(as.numeric(as.character(aucOutM[,4])), digits=3)
 # Now perform a t.test between the two AUC values
 outDiffM <- t.test(aucOutM[,2] , aucOutM[,4], paired=T, alternative='greater')
@@ -306,7 +309,7 @@ h3 <- ggplot(histData) +
   theme(legend.position="none")
 
 # Now onto the females
-allAUCF <- foreach(z=seq(1,100), .combine=rbind, .errorhandling='remove') %dopar%{
+allAUCF <- foreach(z=seq(1,1000), .combine=rbind, .errorhandling='remove') %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
@@ -364,6 +367,7 @@ p4 <- ggplot(allAUCF, aes(x = x, y = y, group=facPlot, col=Status)) +
 # Now make a histogram for the AUC values
 colnames(aucOutF) <- c("AUC", "Val", "AUC", "Val")
 aucOutF[,2] <- round(as.numeric(as.character(aucOutF[,2])), digits=3)
+out4 <- summary(aucOutF)[,2]
 aucOutF[,4] <- round(as.numeric(as.character(aucOutF[,4])), digits=3)
 # Now perform a t.test between the two AUC values
 outDiffF <- t.test(aucOutF[,2] , aucOutF[,4], paired=T, alternative='greater')
@@ -393,3 +397,7 @@ h2
 h3
 h4
 dev.off()
+
+# Now export auc values
+toWrite <- rbind(out1, out2, out3, out4)
+write.csv(toWrite, 'aucStats.csv', quote=F)

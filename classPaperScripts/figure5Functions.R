@@ -7,6 +7,20 @@ rocdata <- function(grp, pred){
     #         roc = data.frame with x and y co-ordinates of plot
     #         stats = data.frame containing: area under ROC curve, p value, upper and lower 95% confidence interval
     
+    # first check to see if we need a binary flip
+    flip.check <- as.data.frame(cbind(grp, pred))
+    flip.vals <- summarySE(data=flip.check, groupvars='grp', measurevar='pred')
+    if(flip.vals[2,3] < flip.vals[1,3]){
+        # Flip the group label so we don't write out a bad ROC
+        # when it is actually good!
+        # But first check to make sure our AUC is actually bad in a validated function
+        final.check <- pROC::auc(pROC::roc(grp~pred))
+        if(final.check > .5){
+          grp <- binary.flip(grp)
+        }
+    }
+
+    
     grp <- as.factor(grp)
     if (length(pred) != length(grp)) {
         stop("The number of classifiers must match the number of data points")
@@ -70,3 +84,47 @@ rocplot.single <- function(grp, pred, title = "ROC Plot", p.value = FALSE){
     
     return(p)
 }
+
+## Create a binary flip function
+binary.flip <- function (x)
+{
+    x * -1 + 1
+}
+
+## Create our summarySE function
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+conf.interval=.95, .drop=TRUE) {
+    library(plyr)
+    
+    # New version of length which can handle NA's: if na.rm==T, don't count them
+    length2 <- function (x, na.rm=FALSE) {
+        if (na.rm) sum(!is.na(x))
+        else       length(x)
+    }
+    
+    # This does the summary. For each group's data frame, return a vector with
+    # N, mean, and sd
+    datac <- ddply(data, groupvars, .drop=.drop,
+    .fun = function(xx, col) {
+        c(N    = length2(xx[[col]], na.rm=na.rm),
+        mean = mean   (xx[[col]], na.rm=na.rm),
+        sd   = sd     (xx[[col]], na.rm=na.rm)
+        )
+    },
+    measurevar
+    )
+    
+    # Rename the "mean" column
+    datac <- rename(datac, c("mean" = measurevar))
+    
+    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+    
+    # Confidence interval multiplier for standard error
+    # Calculate t-statistic for confidence interval:
+    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+    datac$ci <- datac$se * ciMult
+    
+    return(datac)
+}
+
