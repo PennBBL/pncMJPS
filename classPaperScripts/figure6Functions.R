@@ -41,8 +41,8 @@ runLassoforHiLo <- function(x, y, trainingIterations = 100, nCor=3, nofFolds=10,
     stopCluster(cl)
     
     # Now return our output
-    outputMatrix[,2:ncol(outputMatrix)] <- output
-    return(outputMatrix)
+    colnames(output) <- colnames(x)
+    return(output)
 }
 
 tuneAlpha <- function(x, y, alphaSequence, nFolds){
@@ -73,22 +73,7 @@ tuneAlpha <- function(x, y, alphaSequence, nFolds){
 
 ## Now create some functions which we can use to trim the fat from the lasso models
 returnSelectionCol <- function(outputFromrunLasso){
-    sumIndex <- rowSums(abs(sign(apply(outputFromrunLasso[,2:ncol(outputFromrunLasso)],
+    sumIndex <- colSums(abs(sign(apply(outputFromrunLasso[,2:ncol(outputFromrunLasso)],
     2, function(x) as.numeric(as.character(x))))))
-    sumIndex <- cbind(rownames(outputFromrunLasso), sumIndex)
     return(sumIndex)
-}
-
-rmFat <- function(outputFromrunLasso, imagingData, percentileToApply){
-    # Find our cut off from the provided percentile
-    cutoffToApply <- quantile(returnSelectionCol(outputFromrunLasso), .5)
-    # First create our bool vector
-    boo.vec <- rep('FALSE', nrow(outputFromrunLasso))
-    sumIndex <- returnSelectionCol(outputFromrunLasso)
-    boo.vec[which(sumIndex>=cutoffToApply)] <- 'TRUE'
-    index <- which(boo.vec=='TRUE')
-    # Now apply our boo vec to the imaging data
-    output <- imagingData[,index]
-    
-    return(output)
 }

@@ -1,5 +1,5 @@
 ## Load library(s)
-install_load('psych', 'ggplot2', 'pROC', 'ggrepel', 'caret', 'randomForest', 'MatchIt', 'glmnet', 'foreach', 'useful', 'doParallel')
+install_load('psych','ggplot2','pROC','ggrepel','caret','MatchIt','glmnet','foreach','useful','doParallel','utils')
 source('figure6Functions.R')
 
 ## Now load the data
@@ -57,10 +57,40 @@ female.data.all.m$usageBinOrig <- female.data.all.m$usageBin
 output <- female.data.all.m[,c('bblid', 'scanid')]
 write.csv(output, "femaleIDValues.csv", quote=F, row.names=F)
 
-
-# Run variable selection in males
+## Perform variable selection in each fold
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-tmp <- runLassoforHiLo(x=as.matrix(male.data[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), y=as.vector(male.data$usageBin), nofFolds=10, trainingIterations=10, nCor=3, alphaSequence=1)
-# Find selection N
-
-
+foldsToLoop <- createFolds(male.data$usageBin, 25)
+cvPredVals <- rep(NA, length(male.data$usageBin))
+selectVals <- list()
+# Run variable selection in males
+pb <- txtProgressBar(min=0, max=length(foldsToLoop), initial=0, style=3)
+for(q in seq(1, length(foldsToLoop))){
+    index <- foldsToLoop[[q]]
+    #tmp <- runLassoforHiLo(x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), y=as.vector(male.data$usageBin[-index]), nofFolds=20, trainingIterations=10, nCor=8, alphaSequence=seq(0,1,.1))
+    # Now get the selection index
+    #colsToUse <- which(returnSelectionCol(tmp)>1)
+    #selectVals[[q]] <- colsToUse
+    inputX <- as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))])
+    #inputX <- as.matrix(inputX[,colsToUse])
+    outputX <- as.matrix(male.data[index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))])
+    #outputX <- as.matrix(outputX[,colsToUse])
+    # Now build a ridge regression model
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=inputX, alpha=0, parallel=F)
+    lasModel1 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=inputX, alpha=0, lambda=optLam$lambda.min)
+    # Finally predict in the testing subjects
+    cvPredVals[index] <- predict(lasModel1, newx=outputX, type='response')
+    setTxtProgressBar(pb, q)
+}
+roc(male.data$usageBin ~ cvPredVals)
+# Now build an ROC curve with these values
+cvPredVals <- rep(NA, length(male.data$usageBin))
+for(q in seq(1, length(foldsToLoop))){
+    index <- foldsToLoop[[q]]
+    
+    # Now do the real labels
+    optLam <- cv.glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, family="binomial", parallel=F)
+    lasModel2 <- glmnet(y=as.vector(male.data$usageBin[-index]), x=as.matrix(male.data[-index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), alpha=0, lambda=optLam$lambda.min)
+    
+    cvPredVals[index] <- predict(lasModel2, newx=as.matrix(male.data[index,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]), type='response')
+    
+}
