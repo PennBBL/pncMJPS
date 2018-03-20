@@ -21,11 +21,27 @@ mjData$dosage[which(mjData$mjpastyr=="2-3 times a month")] <- 4
 mjData$dosage[which(mjData$mjpastyr=="1-2 times a week")] <- 5
 mjData$dosage[which(mjData$mjpastyr=="3-4 times a week")] <- 6
 mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 7
+mjData$mjLabel <- NA
+mjData$mjLabel[which(mjData$marcat=="MJ Non-User")] <- "NonUser"
+mjData$mjLabel[which(mjData$marcat=="MJ User")] <- "User"
+mjData$mjLabel[which(mjData$marcat=="MJ Frequent User")] <- "FreqUser"
+mjData$mjBinLabel <- "NonUser"
+mjData$mjBinLabel[which(mjData$mjLabel=="User")] <- "User"
+mjData$mjBinLabel[which(mjData$mjLabel=="FreqUser")] <- "User"
+mjData$mjLabel <- as.factor(mjData$mjLabel)
+
 fakeData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/fakesub_exclude.csv')
+# Now create a new label which collapses ps op and td into a new label. This will be a factor w/ two levels
 psData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/clinical/n1601_diagnosis_dxpmr_20170509.csv')
-psData[which(psData$goassessDxpmr7=='OP'),] <- "TD"
+psData <- psData[,-grep('goassessDxpmr4', names(psData))]
+psData$pathLabel <- NA
+psData$pathLabel[which(psData$goassessDxpmr7=='TD' | psData$goassessDxpmr7=='OP')] <- 'TDOP'
+psData$pathLabel[which(psData$goassessDxpmr7=='PS')] <- 'PS'
+psData$pathLabel <- as.factor(psData$pathLabel)
+
 demoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/demographics/n1601_demographics_go1_20161212.csv')
 psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
+
 volData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionVol_20170412.csv')
 gmdData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAtroposIntersectionGMD_20170410.csv')
 ctData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionCT_20170331.csv')
@@ -43,28 +59,29 @@ rehoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/re
 restQAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/rest/n1601_RestQAData_20170714.csv')
 faData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_JHUTractFA_20170321.csv')
 faData2 <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_jlfWmLobesFAValues_20170405.csv')
+faData3 <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_JHULabelsFA_20170321.csv')
 faData <- merge(faData, faData2)
+faData <- merge(faData, faData3)
 rm(faData2)
+rm(faData3)
 
 ## Now apply all restrictions 
 #Start with struc
-strucData <- merge(volData, gmdData, by=c('bblid', 'scanid'))
-strucData <- merge(strucData, ctData, by=c('bblid', 'scanid'))
-strucData <- merge(strucData, t1QAData, by=c('bblid', 'scanid'))
+strucData <- merge(volData, gmdData)
+strucData <- merge(strucData, ctData)
+strucData <- merge(strucData, t1QAData)
 strucData <- merge(strucData, ccData)
 strucData <- strucData[which(strucData$averageManualRating!=0),]
 strucData <- merge(strucData, mjData, by='bblid')
 strucData <- merge(strucData, psData, by=c('bblid', 'scanid'))
 bblidIndex <- strucData$bblid
 bblidIndex <- bblidIndex[which(bblidIndex%in%fakeData$bblid=='FALSE')]
-strucData <- strucData[-which(strucData$goassessDxpmr7==levels(strucData$goassessDxpmr7)[1]),]
 
 # Now do cbfData
-cbfData <- merge(cbfQAData, cbfData, by=c('bblid', 'scanid'))
+cbfData <- merge(cbfQAData, cbfData)
 cbfData <- cbfData[which(cbfData$pcaslExclude==0 & cbfData$bblid %in% bblidIndex),]
-cbfData <- merge(cbfData, psData, by=c('bblid', 'scanid'))
+cbfData <- merge(cbfData, psData)
 cbfData <- merge(cbfData, mjData, by='bblid')
-cbfData <- cbfData[-which(cbfData$goassessDxpmr7==levels(cbfData$goassessDxpmr7)[1]),]
 
 # Now do dti data
 dtiData <- merge(dtiQAData, trData, by=c('bblid', 'scanid'))
@@ -75,8 +92,8 @@ dtiData <- merge(dtiData, psData, by=c('bblid', 'scanid'))
 # Now do FA data
 faData <- merge(dtiQAData, faData)
 faData <- faData[which(faData$dti64Exclude!=1),]
-faData <- merge(faData, mjData)
-faData <- merge(faData, psData)
+faData <- merge(faData, mjData, by='bblid')
+faData <- merge(faData, psData, by=c('bblid', 'scanid'))
 
 # Now do the rest data
 restData <- merge(alffData, rehoData, by=c('bblid', 'scanid'))
@@ -86,4 +103,10 @@ restData <- merge(restData, mjData, by='bblid')
 restData <- merge(restData, psData, by=c('bblid', 'scanid'))
 
 # Now rm all variables we won't need
-rm(mjData, volData, gmdData, ctData, t1QAData, cbfQAData, trData, dtiQAData, alffData, rehoData, restQAData)
+rm(mjData, volData, gmdData, ctData, t1QAData, cbfQAData, trData, dtiQAData, alffData, rehoData, restQAData, fakeData)
+
+# Now explore making one output data set
+allOut <- merge(strucData, cbfData, all=T)
+allOut <- merge(allOut, dtiData, all=T)
+allOut <- merge(allOut, faData, all=T)
+allOut <- merge(allOut, restData, all=T)
