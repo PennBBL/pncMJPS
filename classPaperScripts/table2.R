@@ -32,16 +32,18 @@ female.data <- all.data[which(all.data$sex==2),]
 
 # Now create our age matched samples
 # Starting with male
-tmpDat <- male.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES')]
-mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=na.omit)
+tmpDat <- male.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
+tmpDat <- tmpDat[complete.cases(tmpDat),]
+mod <- matchit(usageBin ~ ageAtScan1 + envSES + dti64Tsnr, data=tmpDat, ratio=2, na.action=na.omit)
 male.data.all <- male.data
 male.data <- male.data[as.vector(mod$match.matrix),]
 male.data <- rbind(male.data, male.data.all[which(male.data.all$usageBin==1),])
 male.data.all.m <- male.data
 
 # Now do female
-tmpDat <- female.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES')]
-mod <- matchit(usageBin ~ ageAtScan1 + envSES, data=tmpDat, ratio=3, na.action=na.omit)
+tmpDat <- female.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'envSES', 'dti64Tsnr')]
+tmpDat <- tmpDat[complete.cases(tmpDat),]
+mod <- matchit(usageBin ~ ageAtScan1 + envSES + dti64Tsnr, data=tmpDat, ratio=2, na.action=na.omit)
 female.data.all <- female.data
 female.data <- female.data[as.vector(mod$match.matrix),]
 female.data <- rbind(female.data, female.data.all[which(female.data.all$usageBin==1),])
@@ -49,7 +51,7 @@ female.data.all.m <- female.data
 
 # Now create a CV ridge reg model prediction stats
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-foldsToLoop <- createFolds(male.data$usageBin, k=table(male.data$usageBin)[2])
+foldsToLoop <- createFolds(male.data$usageBin, k=10)
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
@@ -67,11 +69,12 @@ cutVal <- coords(roc(male.data$usageBin ~ cvPredVals), 'best')
 male.data$usagePred <- 0
 male.data$usagePred[cvPredVals<=cutVal[1]] <- 2
 outTab <- table(male.data$usageBin, male.data$usagePred)
+accVal <- sum(diag(outTab)) / sum(outTab)
 write.csv(outTab, "cmNonVsUserMale.csv", quote=F, row.names=F)
 
 ## Now do females
 female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-foldsToLoop <- createFolds(female.data$usageBin, table(female.data$usageBin)[2])
+foldsToLoop <- createFolds(female.data$usageBin, 10)
 cvPredVals <- rep(NA, length(female.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
@@ -89,6 +92,7 @@ cutVal <- coords(roc(female.data$usageBin ~ cvPredVals), 'best')
 female.data$usagePred <- 0
 female.data$usagePred[cvPredVals<=cutVal[1]] <- 2
 outTab <- table(female.data$usageBin, female.data$usagePred)
+accVal <- sum(diag(outTab)) / sum(outTab)
 write.csv(outTab, "cmNonVsUserFemale.csv", quote=F, row.names=F)
 
 ## Now do the user vs frequent analysis
@@ -119,7 +123,7 @@ female.data.all.m <- female.data
 
 # Now create a CV ridge reg model prediction stats
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-foldsToLoop <- createFolds(male.data$usageBin, table(male.data$usageBin)[2])
+foldsToLoop <- createFolds(male.data$usageBin, 10)
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
@@ -137,11 +141,12 @@ cutVal <- coords(roc(male.data$usageBin ~ cvPredVals), 'best')
 male.data$usagePred <- 0
 male.data$usagePred[cvPredVals<=cutVal[1]] <- 2
 outTab <- table(male.data$usageBin, male.data$usagePred)
+accVal <- sum(diag(outTab)) / sum(outTab)
 write.csv(outTab, "cmUserVsFreqMale.csv", quote=F, row.names=F)
 
 ## Now do females
 female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-foldsToLoop <- createFolds(female.data$usageBin, table(female.data$usageBin)[2])
+foldsToLoop <- createFolds(female.data$usageBin, 10)
 cvPredVals <- rep(NA, length(female.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
@@ -159,4 +164,5 @@ cutVal <- coords(roc(female.data$usageBin ~ cvPredVals), 'best')
 female.data$usagePred <- 0
 female.data$usagePred[cvPredVals<=cutVal[1]] <- 2
 outTab <- table(female.data$usageBin, female.data$usagePred)
+accVal <- sum(diag(outTab)) / sum(outTab)
 write.csv(outTab, "cmUserVsFreqFemale.csv", quote=F, row.names=F)

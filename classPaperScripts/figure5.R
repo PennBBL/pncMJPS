@@ -60,7 +60,7 @@ write.csv(output, "femaleIDValues.csv", quote=F, row.names=F)
 # Now lets make our bootstrapped male ROC curves
 cl <- makeCluster(8)
 registerDoParallel(cl)
-allAUCM <- foreach(z=seq(1,1000), .combine=rbind) %dopar%{
+allAUCM <- foreach(z=seq(1,10), .combine=rbind) %dopar%{
     # Load library(s)
     install_load('glmnet', 'caret', 'pROC', 'useful')
     # Create a random binary outcome
