@@ -10,7 +10,7 @@ install_load('ANTsR','mgcv','utils')
 ## Load the data
 # Start with the imaging data 
 input.images <- antsImageRead('/data/joy/BBL/projects/pncMJPS/data/mytbss/n391_pathVals_include_smooth0/fourd.nii.gz',4)
-input.mask <- antsImageRead('/data/joy/BBL/projects/pncMJPS/data/mytbss/stats/mean_FA_skeleton_mask.nii.gz',3)
+input.mask <- antsImageRead('/data/joy/BBL/projects/pncMJPS/data/mytbss/stats/mean_FA_skeleton_mask_45.nii.gz', 3)
 input.matrix.vals <- timeseries2matrix(input.images,input.mask)
 # Now do the demographic values
 input.demo.vals <- readRDS("/data/joy/BBL/projects/pncMJPS/data/mytbss/subjectData.RDS")
@@ -19,12 +19,12 @@ input.demo.vals <- readRDS("/data/joy/BBL/projects/pncMJPS/data/mytbss/subjectDa
 all.values <- cbind(input.matrix.vals, input.demo.vals)
 
 ## Find the inital value
-check.point.vals <- read.csv("/data/joy/BBL/projects/pncMJPS/data/tmpVoxelVals.csv")
+#check.point.vals <- read.csv("/data/joy/BBL/projects/pncMJPS/data/tmpVoxelVals.csv")
 # Now find the last complete.case
-max.value <-  max(which(complete.cases(check.point.vals)))
+#max.value <-  max(which(complete.cases(check.point.vals)))
 
 ## Now loop through each voxel
-output.values <- matrix(NA, dim(input.matrix.vals)[2],9)
+output.values <- matrix(NA, dim(input.matrix.vals)[2],13)
 output.values <- check.point.vals
 rm(check.point.vals)
 pb <- txtProgressBar(min=0, dim(input.matrix.vals)[2], initial=max.value, style=3)
@@ -33,10 +33,9 @@ for(i in seq(max.value, dim(input.matrix.vals)[2])){
     output.values[i,1] <- i
   }
   else{
-    tmpMod <- gam(all.values[,i] ~ s(age) + sex + dosage + dti64Tsnr, data=all.values)
-    outputVals1 <- as.vector(summary(tmpMod)$s.table[3:4])
-    outputVals2 <- as.vector(t(summary(tmpMod)$p.table[2:4,3:4]))
-    outputRow <- c(i, outputVals1, outputVals2)
+    tmpMod <- lm(all.values[,i] ~ age + age2 + age3 + sex + dosage + dti64Tsnr, data=all.values)
+    outputVals2 <- as.vector(t(summary(tmpMod)$coefficients[2:7,3:4]))
+    outputRow <- c(i, outputVals2)
     output.values[i,] <- outputRow
   }
   setTxtProgressBar(pb, i)
