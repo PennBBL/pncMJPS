@@ -18,10 +18,17 @@ input.demo.vals <- readRDS("/data/joy/BBL/projects/pncMJPS/data/mytbss/subjectDa
 ## Now create our data frame to work with
 all.values <- cbind(input.matrix.vals, input.demo.vals)
 
+## Find the inital value
+check.point.vals <- read.csv("/data/joy/BBL/projects/pncMJPS/data/tmpVoxelVals.csv")
+# Now find the last complete.case
+max.value <-  max(which(complete.cases(check.point.vals)))
+
 ## Now loop through each voxel
 output.values <- matrix(NA, dim(input.matrix.vals)[2],9)
-pb <- txtProgressBar(min=0, dim(input.matrix.vals)[2], initial=0, style=3)
-for(i in 1:dim(input.matrix.vals)[2]){
+output.values <- check.point.vals
+rm(check.point.vals)
+pb <- txtProgressBar(min=0, dim(input.matrix.vals)[2], initial=max.value, style=3)
+for(i in seq(max.value, dim(input.matrix.vals)[2])){
   if(sum(all.values[,i])==0){
     output.values[i,1] <- i
   }
@@ -33,7 +40,10 @@ for(i in 1:dim(input.matrix.vals)[2]){
     output.values[i,] <- outputRow
   }
   setTxtProgressBar(pb, i)
+  if((i %% 1000)==0){
+    write.csv(output.values, "/data/joy/BBL/projects/pncMJPS/data/tmpVoxelVals.csv", quote=F, row.names=F)
+  }
 }
-
+write.csv(output.values, "/data/joy/BBL/projects/pncMJPS/data/tmpVoxelVals.csv", quote=F, row.names=F)
 ## Now I need to write out these values
 
