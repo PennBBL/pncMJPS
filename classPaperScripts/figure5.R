@@ -67,7 +67,7 @@ allAUCM <- foreach(z=seq(1,10), .combine=rbind) %dopar%{
     male.data.all.m$usageBin <- rbinom(dim(male.data.all.m)[1], 1, propValueMale)
     # Now lets see how well we can build our model in a cross validated fashion
     male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-    foldsToLoop <- createFolds(male.data$usageBin, 25)
+    foldsToLoop <- createFolds(male.data$usageBin, 20)
     cvPredVals <- rep(NA, length(male.data$usageBin))
     cvPredValsReal <- rep(NA, length(male.data$usageBin))
     for(q in seq(1, length(foldsToLoop))){

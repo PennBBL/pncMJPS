@@ -73,7 +73,7 @@ tuneAlpha <- function(x, y, alphaSequence, nFolds){
 
 ## Now create some functions which we can use to trim the fat from the lasso models
 returnSelectionCol <- function(outputFromrunLasso){
-    sumIndex <- colSums(abs(sign(apply(outputFromrunLasso[,2:ncol(outputFromrunLasso)],
+    sumIndex <- colSums(abs(sign(apply(outputFromrunLasso[,1:ncol(outputFromrunLasso)],
     2, function(x) as.numeric(as.character(x))))))
     return(sumIndex)
 }

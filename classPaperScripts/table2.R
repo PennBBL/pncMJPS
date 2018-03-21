@@ -51,7 +51,7 @@ female.data.all.m <- female.data
 
 # Now create a CV ridge reg model prediction stats
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-foldsToLoop <- createFolds(male.data$usageBin, k=10)
+foldsToLoop <- createFolds(male.data$usageBin, k=20)
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
@@ -74,7 +74,7 @@ write.csv(outTab, "cmNonVsUserMale.csv", quote=F, row.names=F)
 
 ## Now do females
 female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-foldsToLoop <- createFolds(female.data$usageBin, 10)
+foldsToLoop <- createFolds(female.data$usageBin, 20)
 cvPredVals <- rep(NA, length(female.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
@@ -123,7 +123,7 @@ female.data.all.m <- female.data
 
 # Now create a CV ridge reg model prediction stats
 male.data <- male.data.all.m[complete.cases(male.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(male.data)))]),]
-foldsToLoop <- createFolds(male.data$usageBin, 10)
+foldsToLoop <- createFolds(male.data$usageBin, 20)
 cvPredVals <- rep(NA, length(male.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
@@ -146,7 +146,7 @@ write.csv(outTab, "cmUserVsFreqMale.csv", quote=F, row.names=F)
 
 ## Now do females
 female.data <- female.data.all.m[complete.cases(female.data.all.m[,c(grep('dti_dtitk_jhulabel_fa', names(female.data)))]),]
-foldsToLoop <- createFolds(female.data$usageBin, 10)
+foldsToLoop <- createFolds(female.data$usageBin, 20)
 cvPredVals <- rep(NA, length(female.data$usageBin))
 for(q in seq(1, length(foldsToLoop))){
     index <- foldsToLoop[[q]]
