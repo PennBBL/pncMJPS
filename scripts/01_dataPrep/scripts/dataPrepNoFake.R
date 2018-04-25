@@ -43,11 +43,17 @@ demoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/demographics/n1
 psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
 
 volData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionVol_20170412.csv')
+volData.wm <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfWmVol_20170412.csv')
+volData <- merge(volData, volData.wm)
 gmdData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAtroposIntersectionGMD_20170410.csv')
 ctData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionCT_20170331.csv')
 ccData <- read.csv('/data/joy/BBL/studies/pnc/n2416_dataFreeze/neuroimaging/t1struct/n2416_jlfAntsCTIntersectionCortCon_20170814.csv')
+nmfCT <- read.csv('/data/joy/BBL/projects/barzilayStress/data/inputCSV/n1396_Nmf18Bases_CT_bblids.csv')
+nmfRA <- read.csv('/data/joy/BBL/projects/barzilayStress/data/inputCSV/n1396_Nmf26Bases_Ravens_bblids.csv')
 t1QAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_t1QaData_20170306.csv')
 cbfData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/asl/n1601_jlfAntsCTIntersectionPcaslValues_20170403.csv')
+cbfData.wm <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/asl/n1601_jlfWMPcasl_20170412.csv')
+cbfData <- merge(cbfData, cbfData.wm)
 cbfQAData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/asl/n1601_PcaslQaData_20170403.csv')
 trData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_jlfTRValues_20170411.csv')
 trData2 <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/dti/n1601_jlfWmLobesTRValues_20170405.csv')
@@ -71,6 +77,8 @@ strucData <- merge(volData, gmdData)
 strucData <- merge(strucData, ctData)
 strucData <- merge(strucData, t1QAData)
 strucData <- merge(strucData, ccData)
+strucData <- merge(strucData, nmfCT, all=T)
+strucData <- merge(strucData, nmfRA, all=T)
 strucData <- strucData[which(strucData$averageManualRating!=0),]
 strucData <- merge(strucData, mjData, by='bblid')
 strucData <- merge(strucData, psData, by=c('bblid', 'scanid'))
@@ -110,3 +118,8 @@ allOut <- merge(strucData, cbfData, all=T)
 allOut <- merge(allOut, dtiData, all=T)
 allOut <- merge(allOut, faData, all=T)
 allOut <- merge(allOut, restData, all=T)
+
+# Now make a psOut - which will only be our PS subjects
+psOut <- allOut[which(allOut$goassessDxpmr7=='PS'),]
+psOut <- psOut[-which(psOut$dosage==1),]
+psOut <- psOut[-which(is.na(psOut$dosage)),]
