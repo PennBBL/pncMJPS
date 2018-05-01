@@ -5,7 +5,7 @@
 
 ## Load library(s)
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych', 'pwr', 'ggplot2')
+install_load('psych', 'pwr', 'ggplot2', 'caret')
 
 ## Load data
 mjData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
@@ -43,6 +43,11 @@ psData <- merge(psData, mjData)
 
 all.data <- read.csv('/data/joy/BBL/projects/pncMJPS/scripts/07_MJEffects/scripts/n1601_imagingDataDump_2018-04-04.csv')
 all.data <- merge(all.data, psData)
+
+# Now add the clinical bifactor scores
+fac.data <- read.csv('/data/joy/BBL/studies/pnc/n9498_dataFreeze/clinical/n9498_goassess_itemwise_bifactor_scores_age_regressed_20170131.csv')
+all.data <- merge(all.data, fac.data)
+
 # Now also add our fs ct values
 fs.values <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_freesurferCt_20180213.csv')
 all.data <- merge(all.data, fs.values)
@@ -60,21 +65,48 @@ summaryMetrics <- names(all.data)[c(1540,471,1550:1552)]
 outputVals <- NULL
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + goassessDxpmr7 + race2, data=all.data)
+  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor, data=all.data)
   aovMod <- aov(tmpMod)
-  tmpVals <- matrix(unlist(summary(aovMod)), ncol=5, nrow=7)[4,4:5]
+  tmpVals <- summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')]
   tmpRow <- c(s, tmpVals)
   outputVals <- rbind(outputVals, tmpRow)
 }
+
+## Now check the stability of these f stats via bootstrapping
+# First create 1000 bs folds
+tmp.folds <- createResample(y=all.data$marcat, 1000)
+outputSD <- NULL
+for(s in summaryMetrics){
+  outF <- NULL
+  # Now loop through every BS
+  for(q in 1:length(tmp.folds)){
+    tmpData <- all.data[tmp.folds[[q]],]
+    tmpMod <- lm(tmpData[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor, data=tmpData)
+    aovMod <- aov(tmpMod)
+    tmpVals <- summary(aovMod)[[1]]['marcat',c('F value')]
+    outF <- rbind(outF, summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')])
+  }
+  outputSD <- rbind(outputSD, c(s, sd(outF[,'F value']), length(which(outF[,2]<.05))))
+}
+outputVals <- cbind(outputVals, outputSD[,-1])
 
 # Now do the lobular values
 summaryMetrics <- names(all.data)[c(1553:1600)]
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + goassessDxpmr7 + race2, data=all.data)
+  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + overall_psychopathology_ar_4factor + race2, data=all.data)
   aovMod <- aov(tmpMod)
   tmpVals <- matrix(unlist(summary(aovMod)), ncol=5, nrow=7)[4,4:5]
-  tmpRow <- c(s, tmpVals)
+  outF <- NULL
+  # Now loop through every BS
+  for(q in 1:length(tmp.folds)){
+    tmpData <- all.data[tmp.folds[[q]],]
+    tmpMod <- lm(tmpData[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor, data=tmpData)
+    aovMod <- aov(tmpMod)
+    tmpVals <- summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')]
+    outF <- rbind(outF, summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')])
+  }  
+  tmpRow <- c(s, tmpVals, sd(outF[,'F value']), length(which(outF[,2]<.05)))
   outputVals <- rbind(outputVals, tmpRow)
 }
 
@@ -82,10 +114,19 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(107:245,255:352,353:470,472:569)]
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + goassessDxpmr7 + race2, data=all.data)
+  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + overall_psychopathology_ar_4factor + race2, data=all.data)
   aovMod <- aov(tmpMod)
   tmpVals <- matrix(unlist(summary(aovMod)), ncol=5, nrow=7)[4,4:5]
-  tmpRow <- c(s, tmpVals)
+  outF <- NULL
+  # Now loop through every BS
+  for(q in 1:length(tmp.folds)){
+    tmpData <- all.data[tmp.folds[[q]],]
+    tmpMod <- lm(tmpData[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor, data=tmpData)
+    aovMod <- aov(tmpMod)
+    tmpVals <- summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')]
+    outF <- rbind(outF, summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')])
+  }  
+  tmpRow <- c(s, tmpVals, sd(outF[,'F value']), length(which(outF[,2]<.05)))
   outputVals <- rbind(outputVals, tmpRow)
 }
 
@@ -93,10 +134,19 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(1668:1735,1740,1741)]
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + goassessDxpmr7 + envSES, data=all.data)
+  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + overall_psychopathology_ar_4factor + race2, data=all.data)
   aovMod <- aov(tmpMod)
   tmpVals <- matrix(unlist(summary(aovMod)), ncol=5, nrow=7)[4,4:5]
-  tmpRow <- c(s, tmpVals)
+  outF <- NULL
+  # Now loop through every BS
+  for(q in 1:length(tmp.folds)){
+    tmpData <- all.data[tmp.folds[[q]],]
+    tmpMod <- lm(tmpData[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor, data=tmpData)
+    aovMod <- aov(tmpMod)
+    tmpVals <- summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')]
+    outF <- rbind(outF, summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')])
+  }  
+  tmpRow <- c(s, tmpVals, sd(outF[,'F value']), length(which(outF[,2]<.05)))
   outputVals <- rbind(outputVals, tmpRow)
 }
 
