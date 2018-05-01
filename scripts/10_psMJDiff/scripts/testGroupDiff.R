@@ -31,9 +31,9 @@ psOut <- psOut[-which(psOut$marcat=="MJ Frequent User"),]
 outputVals <- matrix(NA, length(loopVals), 3)
 rowCheck <- 1
 for(i in loopVals){
-  formTemp <- as.formula(paste(i, "~age + age2 + age3 + sex + race2 + marcat"))
+  formTemp <- as.formula(paste(i, "~age + age2 + age3 + sex + marcat + race2"))
   tmpMod <- lm(formTemp, data=psOut)
-  outputRow <- c(i,as.numeric(summary(tmpMod)$coefficients[7,3]), as.numeric(summary(tmpMod)$coefficients[7,4]))
+  outputRow <- c(i,as.numeric(summary(tmpMod)$coefficients['marcatMJ User',3]), as.numeric(summary(tmpMod)$coefficients['marcatMJ User',4]))
   outputVals[rowCheck,] <- outputRow
   rowCheck <- rowCheck+1
 }
@@ -56,9 +56,9 @@ psOut <- psOut[-which(psOut$marcat=="MJ User"),]
 outputVals2 <- matrix(NA, length(loopVals), 3)
 rowCheck <- 1
 for(i in loopVals){
-  formTemp <- as.formula(paste(i, "~age + age2 + age3 + sex + race2 + marcat"))
+  formTemp <- as.formula(paste(i, "~age + age2 + age3 + sex + marcat"))
   tmpMod <- lm(formTemp, data=psOut)
-  outputRow <- c(i,as.numeric(summary(tmpMod)$coefficients[7,3]), as.numeric(summary(tmpMod)$coefficients[7,4]))
+  outputRow <- c(i,as.numeric(summary(tmpMod)$coefficients['marcatMJ Non-User',3]), as.numeric(summary(tmpMod)$coefficients['marcatMJ Non-User',4]))
   outputVals2[rowCheck,] <- outputRow
   rowCheck <- rowCheck+1
 }
