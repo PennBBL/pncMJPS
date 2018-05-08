@@ -8,7 +8,7 @@ source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 install_load('psych', 'pwr', 'ggplot2', 'caret')
 
 ## Load data
-mjData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
+mjData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
 # Now create an ordinal variable for the MJ dosage
 mjData$dosage <- NA
 mjData$dosage[which(mjData$marcat=='MJ Non-User')] <- 0
@@ -28,7 +28,7 @@ mjData$mjBinLabel[which(mjData$mjLabel=="User")] <- "User"
 mjData$mjBinLabel[which(mjData$mjLabel=="FreqUser")] <- "User"
 mjData$mjLabel <- as.factor(mjData$mjLabel)
 
-fakeData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/fakesub_exclude.csv')
+fakeData <- read.csv('/data/jux/BBL/projects-from-joy/projects//pncMJPS/data/fakesub_exclude.csv')
 # Now create a new label which collapses ps op and td into a new label. This will be a factor w/ two levels
 psData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/clinical/n1601_diagnosis_dxpmr_20170509.csv')
 psData <- psData[,-grep('goassessDxpmr4', names(psData))]
@@ -41,7 +41,7 @@ demoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/demographics/n1
 psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
 psData <- merge(psData, mjData)
 
-all.data <- read.csv('/data/joy/BBL/projects/pncMJPS/scripts/07_MJEffects/scripts/n1601_imagingDataDump_2018-04-04.csv')
+all.data <- read.csv('/data/jux/BBL/projects/pncMJPS/scripts/07_MJEffects/scripts/n1601_imagingDataDump_2018-04-04.csv')
 all.data <- merge(all.data, psData)
 
 # Now add the clinical bifactor scores
@@ -75,9 +75,15 @@ for(s in summaryMetrics){
 ## Now check the stability of these f stats via bootstrapping
 # First create 1000 bs folds
 tmp.folds <- createResample(y=all.data$marcat, 1000)
+# Now create a set of 250 random labels
+tmp.dataframe <- matrix(NA, nrow=dim(all.data)[1], ncol=length(tmp.folds))
+for(q in 1:length(tmp.folds)){
+  tmp.dataframe[,q] <- sample(all.data$marcat)
+}
 outputSD <- NULL
 for(s in summaryMetrics){
   outF <- NULL
+  outF2 <- NULL
   # Now loop through every BS
   for(q in 1:length(tmp.folds)){
     tmpData <- all.data[tmp.folds[[q]],]
@@ -85,8 +91,16 @@ for(s in summaryMetrics){
     aovMod <- aov(tmpMod)
     tmpVals <- summary(aovMod)[[1]]['marcat',c('F value')]
     outF <- rbind(outF, summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')])
+    # Now create our fake f stat
+    tmpMod2 <- lm(tmpData[,s] ~ ageAtScan1 + sex + averageManualRating + factor(tmp.dataframe[,q]) + race2 + overall_psychopathology_ar_4factor, data=tmpData)
+    aovMod2 <- aov(tmpMod2)
+    tmpVals2 <- summary(aovMod2)[[1]]['marcat',c('F value')]
+    outF2 <- rbind(outF2, summary(aovMod2)[[1]]['factor(tmp.dataframe[, q])',c('F value', 'Pr(>F)')])
   }
-  outputSD <- rbind(outputSD, c(s, sd(outF[,'F value']), length(which(outF[,2]<.05))))
+  outMeanFTrue <- mean(outF[,1])
+  outMeanFFalse <- mean(outF2[,1])
+  outTStat <- t.test(outF[,1], outF2[,1])$statistic
+  outputSD <- rbind(outputSD, c(s, sd(outF[,'F value']), length(which(outF[,2]<.05)), outMeanFTrue, outMeanFFalse, outTStat))
 }
 outputVals <- cbind(outputVals, outputSD[,-1])
 
@@ -183,7 +197,7 @@ pValFDRLS[c(507:574)] <- p.adjust(as.numeric(outputVals[507:574,3]), method='fdr
 outputVals <- cbind(outputVals, pValFDRLS)
 
 # Now write the outputVals
-colnames(outputVals) <- c('ROI', 'F Stat', 'p Value', 'Q Value', 'Q Value Manual Selection')
+#colnames(outputVals) <- c('ROI', 'F Stat', 'p Value', 'Q Value', 'Q Value Manual Selection')
 rownames(outputVals) <- NULL
 write.csv(outputVals, "threeByOneAnovaMarcat.csv", quote=F, row.names=F)
 

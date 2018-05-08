@@ -73,7 +73,7 @@ runGamModelG <- function(dataFrame, grepPattern, qualityIndex){
     # Get the roi name
     roiName <- names(dataFrame)[i]
     # First run the model 
-    tmp <- gam(dataFrame[,i]~s(dataFrame[,ageCol])+dataFrame[,sexCol]+dataFrame[,mjCol]+dataFrame[,psCol]+dataFrame[,qualityCol])
+    tmp <- gam(dataFrame[,i]~s(dataFrame[,ageCol])+dataFrame[,sexCol]+dataFrame[,mjCol]+dataFrame[,qualityCol])
     # Now grap our interaction terms
     summaryVals <- summary(tmp)
     sigTerms <- summaryVals$p.table[3,4]
