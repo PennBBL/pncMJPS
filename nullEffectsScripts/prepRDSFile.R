@@ -38,7 +38,7 @@ psData <- merge(psData, mjData)
 all.data <- read.csv('/data/jux/BBL/projects/pncMJPS/scripts/07_MJEffects/scripts/n1601_imagingDataDump_2018-04-04.csv')
 all.data <- merge(all.data, psData)
 
-# Now add the clinical bifactor scores
+# Now add the clinical factor scores
 fac.data <- read.csv('/data/joy/BBL/studies/pnc/n9498_dataFreeze/clinical/n9498_goassess_itemwise_bifactor_scores_age_regressed_20170131.csv')
 all.data <- merge(all.data, fac.data)
 
