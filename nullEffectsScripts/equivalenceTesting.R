@@ -13,62 +13,15 @@ source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 install_load('psych','ggplot2','caret','equivalence')
 
 ## Now load the data
-mjData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
-# Now create an ordinal variable for the MJ dosage
-mjData$dosage <- NA
-mjData$dosage[which(mjData$marcat=='MJ Non-User')] <- 0
-mjData$dosage[which(mjData$marcat=='MJ User' & mjData$mjpastyr=='')] <- 1
-mjData$dosage[which(mjData$mjpastyr=="Less than once a month")] <- 2
-mjData$dosage[which(mjData$mjpastyr=="About once a month")] <- 3
-mjData$dosage[which(mjData$mjpastyr=="2-3 times a month")] <- 4
-mjData$dosage[which(mjData$mjpastyr=="1-2 times a week")] <- 5
-mjData$dosage[which(mjData$mjpastyr=="3-4 times a week")] <- 6
-mjData$dosage[which(mjData$mjpastyr=="Everyday or nearly every day")] <- 7
-mjData$mjLabel <- NA
-mjData$mjLabel[which(mjData$marcat=="MJ Non-User")] <- "NonUser"
-mjData$mjLabel[which(mjData$marcat=="MJ User")] <- "User"
-mjData$mjLabel[which(mjData$marcat=="MJ Frequent User")] <- "FreqUser"
-mjData$mjBinLabel <- "NonUser"
-mjData$mjBinLabel[which(mjData$mjLabel=="User")] <- "User"
-mjData$mjBinLabel[which(mjData$mjLabel=="FreqUser")] <- "User"
-mjData$mjLabel <- as.factor(mjData$mjLabel)
-
-fakeData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/fakesub_exclude.csv')
-# Now create a new label which collapses ps op and td into a new label. This will be a factor w/ two levels
-psData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/clinical/n1601_diagnosis_dxpmr_20170509.csv')
-psData <- psData[,-grep('goassessDxpmr4', names(psData))]
-psData$pathLabel <- NA
-psData$pathLabel[which(psData$goassessDxpmr7=='TD' | psData$goassessDxpmr7=='OP')] <- 'TDOP'
-psData$pathLabel[which(psData$goassessDxpmr7=='PS')] <- 'PS'
-psData$pathLabel <- as.factor(psData$pathLabel)
-
-demoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/demographics/n1601_demographics_go1_20161212.csv')
-psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
-psData <- merge(psData, mjData)
-
-all.data <- read.csv('/data/jux/BBL/projects/pncMJPS/scripts/07_MJEffects/scripts/n1601_imagingDataDump_2018-04-04.csv')
-all.data <- merge(all.data, psData)
-
-# Now add the clinical bifactor scores
-fac.data <- read.csv('/data/joy/BBL/studies/pnc/n9498_dataFreeze/clinical/n9498_goassess_itemwise_bifactor_scores_age_regressed_20170131.csv')
-all.data <- merge(all.data, fac.data)
-
-# Now also add our fs ct values
-fs.values <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_freesurferCt_20180213.csv')
-all.data <- merge(all.data, fs.values)
-all.data$fsAvgCT <- (all.data$LThickness + all.data$RThickness)/2
-
-# Now clean the marcat variable
-all.data <- all.data[-which(all.data$marcat==''),]
-all.data <- all.data[which((all.data$ageAtScan1/12)>=14),]
+all.data <- readRDS('mjAnovaData.RDS')
  
 ### Begin bootstrapping down here
 ## First create our resamples
-tmp.folds <- createResample(y=all.data$marcat, 10000)
+tmp.folds <- createResample(y=all.data$marcat, 1000)
 
 ## Now regress out age and sex so we can compare our groups
 orig <- all.data
-base.model <- paste("ageAtScan1 + sex + factor(race2)")
+base.model <- paste("ageAtScan1 + sex")
 vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1552)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
@@ -107,18 +60,59 @@ output.differences$freq.minus.user <- as.numeric(as.character(output.differences
 ## Now write this data
 write.csv(output.differences, "~/mjBSVals.csv", quote=F, row.names=F)
 
-## NOw get our means and confidence intervals four our differences
+## Now get our means and confidence intervals four our differences
 mean.vals.1 <- summarySE(data=output.differences, groupvars='ROI', measurevar='user.minus.non')
 mean.vals.2 <- summarySE(data=output.differences, groupvars='ROI', measurevar='freq.minus.non')
 mean.vals.3 <- summarySE(data=output.differences, groupvars='ROI', measurevar='freq.minus.user')
 
-## Now plot our values
+## And now find those regions that have a min 95% CI > .3
+mean.vals.1$flag <- 0
+mean.vals.1$flag[which(abs(mean.vals.1[,'user.minus.non']) - mean.vals.1[,'ci']>.3)] <- 1
+mean.vals.2$flag <- 0
+mean.vals.2$flag[which(abs(mean.vals.2[,'freq.minus.non']) - mean.vals.2[,'ci']>.3)] <- 1
+mean.vals.3$flag <- 0
+mean.vals.3$flag[which(abs(mean.vals.3[,'freq.minus.user']) - mean.vals.3[,'ci']>.3)] <- 1
+
+## Now grab some p values for our ROI's
+## the p value will be obtained by calculating the # of times
+## the absolute mean difference is greater than .3
+## This proportion will be our p value!
+output.differences$user.minus.non.bin <- 0
+output.differences$user.minus.non.bin[which(abs(output.differences$user.minus.non)>=.3)] <- 1
+output.differences$freq.minus.non.bin <- 0
+output.differences$freq.minus.non.bin[which(abs(output.differences$freq.minus.non)>=.3)] <- 1
+output.differences$freq.minus.user.bin <- 0
+output.differences$freq.minus.user.bin[which(abs(output.differences$freq.minus.user)>=.3)] <- 1
+
+## Now find the bootstrapped p value w/in each ROI
+bs.p.vals.out <- NULL
+for(r in mean.vals.1$ROI){
+  u.m.n <- 1 - dim(output.differences[which(output.differences$ROI==r & output.differences$user.minus.non.bin==1),])[1]/1000
+  f.m.n <- 1 - dim(output.differences[which(output.differences$ROI==r & output.differences$freq.minus.non.bin==1),])[1]/1000
+  f.m.u <- 1 - dim(output.differences[which(output.differences$ROI==r & output.differences$freq.minus.user.bin==1),])[1]/1000
+  out.row <- c(r, u.m.n, f.m.n, f.m.u)
+  bs.p.vals.out <- rbind(bs.p.vals.out, out.row)
+}
+rownames(bs.p.vals.out) <- NULL
+colnames(bs.p.vals.out) <- c('ROI', 'umnPVal', 'fmnPVal', 'fmuPVal')
+bs.p.vals.out <- as.data.frame(bs.p.vals.out)
+bs.p.vals.out[,2:4] <- apply(bs.p.vals.out[,2:4], 2, function(x) as.numeric(as.character(x)))
+mean.vals.1 <- merge(mean.vals.1, bs.p.vals.out[,c(1,2)])
+mean.vals.2 <- merge(mean.vals.2, bs.p.vals.out[,c(1,3)])
+mean.vals.3 <- merge(mean.vals.3, bs.p.vals.out[,c(1,4)])
+
+## Now write the output
+output <- merge(mean.vals.1, mean.vals.2, by='ROI')
+output <- merge(output, mean.vals.3, by='ROI')
+
+## Now produce our histograms
 pdf('user.minus.non.pdf')
 for(r in mean.vals.1$ROI){
   ## First grab all of our values
   tmp.dat <- output.differences[which(output.differences$ROI==r),]
   mean.value <- mean.vals.1[which(mean.vals.1$ROI==r),'user.minus.non']
   ci.value <- mean.vals.1[which(mean.vals.1$ROI==r),'ci']
+  p.val.string <- paste("p-value = ", mean.vals.1[which(mean.vals.1$ROI==r),'umnPVal'], sep='')
   ## Now plot our histogram for these values
   out.plot <- ggplot(tmp.dat) +
     geom_histogram(aes(user.minus.non), color='red', alpha=.3) +
@@ -128,7 +122,8 @@ for(r in mean.vals.1$ROI){
     geom_vline(xintercept=-.3, linetype="dotted") +
     geom_vline(xintercept=.3, linetype="dotted") +
     ggtitle(r) +
-    coord_cartesian(xlim=c(-.7, .7))
+    coord_cartesian(xlim=c(-.7, .7)) +
+    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F)
   print(out.plot)
 }
 dev.off()
@@ -138,6 +133,7 @@ for(r in mean.vals.1$ROI){
   tmp.dat <- output.differences[which(output.differences$ROI==r),]
   mean.value <- mean.vals.2[which(mean.vals.1$ROI==r),'freq.minus.non']
   ci.value <- mean.vals.2[which(mean.vals.1$ROI==r),'ci']
+  p.val.string <- paste("p-value = ", mean.vals.2[which(mean.vals.1$ROI==r),'fmnPVal'], sep='')
   ## Now plot our histogram for these values
   out.plot <- ggplot(tmp.dat) +
     geom_histogram(aes(freq.minus.non), color='red', alpha=.3) +
@@ -147,7 +143,8 @@ for(r in mean.vals.1$ROI){
     geom_vline(xintercept=-.3, linetype="dotted") +
     geom_vline(xintercept=.3, linetype="dotted") +
     ggtitle(r) +
-    coord_cartesian(xlim=c(-.7, .7))
+    coord_cartesian(xlim=c(-.7, .7)) +
+    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F)
   print(out.plot)
 }
 dev.off()
@@ -155,8 +152,9 @@ pdf('freq.minus.user.pdf')
 for(r in mean.vals.1$ROI){
   ## First grab all of our values
   tmp.dat <- output.differences[which(output.differences$ROI==r),]
-  mean.value <- mean.vals.3[which(mean.vals.1$ROI==r),'freq.minus.user']
-  ci.value <- mean.vals.3[which(mean.vals.1$ROI==r),'ci']
+  mean.value <- mean.vals.3[which(mean.vals.3$ROI==r),'freq.minus.user']
+  ci.value <- mean.vals.3[which(mean.vals.3$ROI==r),'ci']
+  p.val.string <- paste("p-value = ", mean.vals.3[which(mean.vals.3$ROI==r),'fmuPVal'], sep='')
   ## Now plot our histogram for these values
   out.plot <- ggplot(tmp.dat) +
     geom_histogram(aes(freq.minus.user), color='red', alpha=.3) +
@@ -166,7 +164,43 @@ for(r in mean.vals.1$ROI){
     geom_vline(xintercept=-.3, linetype="dotted") +
     geom_vline(xintercept=.3, linetype="dotted") +
     ggtitle(r) +
-    coord_cartesian(xlim=c(-.7, .7))
+    coord_cartesian(xlim=c(-.7, .7)) +
+    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F)
   print(out.plot)
 }
 dev.off()
+
+#### Now run equivalence testing down here
+equiv.data <- orig
+base.model <- paste("ageAtScan1 + sex")
+vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1552)
+for(v in vars.of.interest){
+  name.val <- names(all.data)[v]
+  tmp.formula <- as.formula(paste(name.val, "~", base.model))
+  tmp.col <- rep(NA, 1504)
+  tmp.mod <- lm(tmp.formula, all.data)
+  index <- names(residuals(tmp.mod))
+  equiv.data[index,name.val] <- NA
+  equiv.data[index,name.val] <- scale(residuals(tmp.mod))
+}
+
+## Now run through all of our tost tests!
+output.tost.vals <- NULL
+for(v in vars.of.interest){
+  name.val <- names(all.data)[v]
+  test.val.one <- tost(x=equiv.data[which(equiv.data$marcat=='MJ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
+  test.val.two <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Frequent User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
+  test.val.three <- tost(x=equiv.data[which(equiv.data$marcat=='MJ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Frequent User"),v], paired=F)
+  ## Now prepare our output values
+  output.row <- c(name.val, test.val.one$tost.p.value, test.val.two$tost.p.value, test.val.three$tost.p.value)
+  output.tost.vals <- rbind(output.tost.vals, output.row)
+}
+# Now perform fdr correction on our p values
+rownames(output.tost.vals) <- NULL
+output.tost.vals <- as.data.frame(cbind(output.tost.vals, apply(output.tost.vals[,2:4], 2, p.adjust)))
+output.tost.vals[,2:7] <- apply(output.tost.vals[,-1], 2, function(x) as.numeric(as.character(x)))
+colnames(output.tost.vals) <- c('ROI','MJUser.MJNonUser','Freq.MJNonUser','MJUser.Freq','MJUser.MJNonUser.Bon','Freq.MJNonUser.Bon','MJUser.Freq.Bon')
+
+## Now combine all of these values
+output <- merge(output, output.tost.vals, by='ROI')
+write.csv(output, "bsPValResults.csv", quote=F, row.names=F)
