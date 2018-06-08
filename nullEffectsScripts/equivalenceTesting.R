@@ -22,7 +22,7 @@ tmp.folds <- createResample(y=all.data$marcat, 1000)
 ## Now regress out age and sex so we can compare our groups
 orig <- all.data
 base.model <- paste("ageAtScan1 + sex")
-vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1552)
+vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
@@ -173,7 +173,7 @@ dev.off()
 #### Now run equivalence testing down here
 equiv.data <- orig
 base.model <- paste("ageAtScan1 + sex")
-vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1552)
+vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
