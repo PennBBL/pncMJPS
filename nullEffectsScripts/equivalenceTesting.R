@@ -10,7 +10,7 @@
 
 ## Load library(s)
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych','ggplot2','caret','equivalence')
+install_load('psych','ggplot2','caret','equivalence', 'mgcv')
 
 ## Now load the data
 all.data <- readRDS('mjAnovaData.RDS')
@@ -21,14 +21,14 @@ tmp.folds <- createResample(y=all.data$marcat, 1000)
 
 ## Now regress out age and sex so we can compare our groups
 orig <- all.data
-base.model <- paste("ageAtScan1 + sex")
+base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor")
 vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
   tmp.col <- rep(NA, 1504)
-  tmp.mod <- lm(tmp.formula, all.data)
-  index <- names(residuals(tmp.mod))
+  tmp.mod <- gam(tmp.formula, data=all.data)
+  index <- which(complete.cases(all.data[,v]))
   all.data[index,name.val] <- NA
   all.data[index,name.val] <- scale(residuals(tmp.mod))
 }
@@ -115,15 +115,17 @@ for(r in mean.vals.1$ROI){
   p.val.string <- paste("p-value = ", mean.vals.1[which(mean.vals.1$ROI==r),'umnPVal'], sep='')
   ## Now plot our histogram for these values
   out.plot <- ggplot(tmp.dat) +
-    geom_histogram(aes(user.minus.non), color='red', alpha=.3) +
-    geom_vline(xintercept=mean.value, yintercept=0) +
-    geom_vline(xintercept=mean.value+ci.value, yintercept=0) +
-    geom_vline(xintercept=mean.value-ci.value, yintercept=0) +
+    geom_histogram(aes(user.minus.non), color='red', alpha=.3, bins=100) +
+    geom_vline(xintercept=mean.value) +
+    geom_vline(xintercept=mean.value+ci.value) +
+    geom_vline(xintercept=mean.value-ci.value) +
     geom_vline(xintercept=-.3, linetype="dotted") +
     geom_vline(xintercept=.3, linetype="dotted") +
-    ggtitle(r) +
-    coord_cartesian(xlim=c(-.7, .7)) +
-    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F)
+    ggtitle('') +
+    coord_cartesian(xlim=c(-.7, .7), ylim=c(0,50)) +
+    theme_bw() +
+    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F, size=10) +
+    theme(text = element_text(size=30), axis.title.x = element_blank(), axis.title.y = element_blank())
   print(out.plot)
 }
 dev.off()
@@ -136,15 +138,17 @@ for(r in mean.vals.1$ROI){
   p.val.string <- paste("p-value = ", mean.vals.2[which(mean.vals.1$ROI==r),'fmnPVal'], sep='')
   ## Now plot our histogram for these values
   out.plot <- ggplot(tmp.dat) +
-    geom_histogram(aes(freq.minus.non), color='red', alpha=.3) +
-    geom_vline(xintercept=mean.value, yintercept=0) +
-    geom_vline(xintercept=mean.value+ci.value, yintercept=0) +
-    geom_vline(xintercept=mean.value-ci.value, yintercept=0) +
+    geom_histogram(aes(freq.minus.non), color='red', alpha=.3, bins=100) +
+    geom_vline(xintercept=mean.value) +
+    geom_vline(xintercept=mean.value+ci.value) +
+    geom_vline(xintercept=mean.value-ci.value) +
     geom_vline(xintercept=-.3, linetype="dotted") +
     geom_vline(xintercept=.3, linetype="dotted") +
-    ggtitle(r) +
-    coord_cartesian(xlim=c(-.7, .7)) +
-    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F)
+    ggtitle('') +
+    coord_cartesian(xlim=c(-.7, .7), ylim=c(0,50)) +
+    theme_bw() +
+    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F, size=10) +
+    theme(text = element_text(size=30), axis.title.x = element_blank(), axis.title.y = element_blank())
   print(out.plot)
 }
 dev.off()
@@ -157,31 +161,33 @@ for(r in mean.vals.1$ROI){
   p.val.string <- paste("p-value = ", mean.vals.3[which(mean.vals.3$ROI==r),'fmuPVal'], sep='')
   ## Now plot our histogram for these values
   out.plot <- ggplot(tmp.dat) +
-    geom_histogram(aes(freq.minus.user), color='red', alpha=.3) +
-    geom_vline(xintercept=mean.value, yintercept=0) +
-    geom_vline(xintercept=mean.value+ci.value, yintercept=0) +
-    geom_vline(xintercept=mean.value-ci.value, yintercept=0) +
+    geom_histogram(aes(freq.minus.user), color='red', alpha=.3, bins=100) +
+    geom_vline(xintercept=mean.value) +
+    geom_vline(xintercept=mean.value+ci.value) +
+    geom_vline(xintercept=mean.value-ci.value) +
     geom_vline(xintercept=-.3, linetype="dotted") +
     geom_vline(xintercept=.3, linetype="dotted") +
-    ggtitle(r) +
-    coord_cartesian(xlim=c(-.7, .7)) +
-    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F)
+    ggtitle('') +
+    coord_cartesian(xlim=c(-.7, .7), ylim=c(0,50)) +
+    theme_bw() +
+    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F, size=10) +
+    theme(text = element_text(size=30), axis.title.x = element_blank(), axis.title.y = element_blank())
   print(out.plot)
 }
 dev.off()
 
 #### Now run equivalence testing down here
 equiv.data <- orig
-base.model <- paste("ageAtScan1 + sex")
+base.model <- paste("ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor")
 vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
   tmp.col <- rep(NA, 1504)
-  tmp.mod <- lm(tmp.formula, all.data)
-  index <- names(residuals(tmp.mod))
-  equiv.data[index,name.val] <- NA
-  equiv.data[index,name.val] <- scale(residuals(tmp.mod))
+  tmp.mod <- gam(tmp.formula, data=all.data)
+  index <- which(complete.cases(all.data[,v]))
+  all.data[index,name.val] <- NA
+  all.data[index,name.val] <- scale(residuals(tmp.mod))
 }
 
 ## Now run through all of our tost tests!
