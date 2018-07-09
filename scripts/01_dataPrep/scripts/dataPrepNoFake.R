@@ -10,7 +10,7 @@
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 
 ## Load the required data
-mjData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
+mjData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/n9498_go1_foradon_061518.csv')
 # Now create an ordinal variable for the MJ dosage
 mjData$dosage <- NA
 mjData$dosage[which(mjData$marcat=='MJ Non-User')] <- 0
@@ -30,7 +30,7 @@ mjData$mjBinLabel[which(mjData$mjLabel=="User")] <- "User"
 mjData$mjBinLabel[which(mjData$mjLabel=="FreqUser")] <- "User"
 mjData$mjLabel <- as.factor(mjData$mjLabel)
 
-fakeData <- read.csv('/data/joy/BBL/projects/pncMJPS/data/fakesub_exclude.csv')
+fakeData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/fakesub_exclude.csv')
 # Now create a new label which collapses ps op and td into a new label. This will be a factor w/ two levels
 psData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/clinical/n1601_diagnosis_dxpmr_20170509.csv')
 psData <- psData[,-grep('goassessDxpmr4', names(psData))]
@@ -41,6 +41,7 @@ psData$pathLabel <- as.factor(psData$pathLabel)
 
 demoData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/demographics/n1601_demographics_go1_20161212.csv')
 psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
+psData <- psData[which(psData$ageAtScan1/12>14),]
 
 volData <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfAntsCTIntersectionVol_20170412.csv')
 volData.wm <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_jlfWmVol_20170412.csv')
@@ -121,5 +122,5 @@ allOut <- merge(allOut, restData, all=T)
 
 # Now make a psOut - which will only be our PS subjects
 psOut <- allOut[which(allOut$goassessDxpmr7=='PS'),]
-psOut <- psOut[-which(psOut$dosage==1),]
+#psOut <- psOut[-which(psOut$dosage==1),]
 psOut <- psOut[-which(is.na(psOut$dosage)),]
