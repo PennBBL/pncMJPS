@@ -4,13 +4,13 @@
 ## isolated to the PS groups
 
 ## First load library(s)
-source('/data/joy/BBL/projects/pncMJPS/scripts/01_dataPrep/scripts/dataPrepNoFake.R')
+source('/data/jux/BBL/projects/pncMJPS/scripts/01_dataPrep/scripts/dataPrepNoFake.R')
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 
 ## First lets explore our demographics for all subbjects
 ageVals <- summarySE(data=psOut, measurevar='ageAtScan1', groupvars='dosage')
-raceVals <- table(psOut$race2, psOut$dosage)
-sexVals <- table(psOut$sex, psOut$dosage)
+raceVals <- table(psOut$race2.x, psOut$dosage)
+sexVals <- table(psOut$sex.x, psOut$dosage)
 
 ## Now write these guys
 write.csv(ageVals, "ageValues.csv", quote=F, row.names=F)
@@ -27,13 +27,13 @@ psOut$age3 <- scale(psOut$ageAtScan1)^3
 loopVals <- names(psOut)[grep("jlf", names(psOut))]
 loopVals <- append(loopVals, names(psOut)[grep("dtitk_jhulabel_", names(psOut))])
 loopVals <- append(loopVals, names(psOut)[grep("Nmf", names(psOut))])
-psOut <- psOut[-which(psOut$marcat=="MJ Frequent User"),]
+psOut <- psOut[-which(psOut$marcat=="MJ Freq User"),]
 outputVals <- matrix(NA, length(loopVals), 3)
 rowCheck <- 1
 for(i in loopVals){
-  formTemp <- as.formula(paste(i, "~age + age2 + age3 + sex + marcat + race2"))
+  formTemp <- as.formula(paste(i, "~age + age2 + age3 + sex.x + marcat + factor(race2.x)"))
   tmpMod <- lm(formTemp, data=psOut)
-  outputRow <- c(i,as.numeric(summary(tmpMod)$coefficients['marcatMJ User',3]), as.numeric(summary(tmpMod)$coefficients['marcatMJ User',4]))
+  outputRow <- c(i,as.numeric(summary(tmpMod)$coefficients['marcatMJ Occ User',3]), as.numeric(summary(tmpMod)$coefficients['marcatMJ Occ User',4]))
   outputVals[rowCheck,] <- outputRow
   rowCheck <- rowCheck+1
 }
@@ -48,15 +48,15 @@ for(gV in grepVals){
 outputVals <- cbind(outputVals,addCol)
 
 # Now do frequent vs non
-source('/data/joy/BBL/projects/pncMJPS/scripts/01_dataPrep/scripts/dataPrepNoFake.R')
+source('/data/jux/BBL/projects/pncMJPS/scripts/01_dataPrep/scripts/dataPrepNoFake.R')
 psOut$age <- scale(psOut$ageAtScan1)
 psOut$age2 <- scale(psOut$ageAtScan1)^2
 psOut$age3 <- scale(psOut$ageAtScan1)^3
-psOut <- psOut[-which(psOut$marcat=="MJ User"),]
+psOut <- psOut[-which(psOut$marcat=="MJ Occ User"),]
 outputVals2 <- matrix(NA, length(loopVals), 3)
 rowCheck <- 1
 for(i in loopVals){
-  formTemp <- as.formula(paste(i, "~age + age2 + age3 + sex + marcat"))
+  formTemp <-  as.formula(paste(i, "~age + age2 + age3 + sex.x + marcat + factor(race2.x)"))
   tmpMod <- lm(formTemp, data=psOut)
   outputRow <- c(i,as.numeric(summary(tmpMod)$coefficients['marcatMJ Non-User',3]), as.numeric(summary(tmpMod)$coefficients['marcatMJ Non-User',4]))
   outputVals2[rowCheck,] <- outputRow
