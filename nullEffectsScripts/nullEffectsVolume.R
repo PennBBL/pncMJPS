@@ -29,8 +29,8 @@ writeDensityPlot <- function(data=all.data, var.of.interest=NULL, covariates="s(
     ## Now create our density plot
     out.hist <- ggplot(tmp.data, aes(tmpvals)) +
       geom_density(data=subset(tmp.data,marcat=='MJ Non-User'), fill="#009E73",alpha=.4) +
-      geom_density(data=subset(tmp.data,marcat=='MJ User'), fill="#9ad0f3", alpha=.4) +
-      geom_density(data=subset(tmp.data,marcat=='MJ Frequent User'), fill="#D55E00",alpha=.4) +
+      geom_density(data=subset(tmp.data,marcat=='MJ Occ User'), fill="#9ad0f3", alpha=.4) +
+      geom_density(data=subset(tmp.data,marcat=='MJ Freq User'), fill="#D55E00",alpha=.4) +
       coord_cartesian(xlim=c(-5, 5), ylim=c(0,.55)) +
       xlab(x.ax.name) +
       theme_bw() +
