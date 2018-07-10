@@ -82,7 +82,7 @@ rownames(outputVals) <- NULL
 write.csv(outputVals, "threeByOneAnovaMarcat.csv", quote=F, row.names=F)
 
 ## Now I need to go about plotting the nominally significant differences
-roiNames <- as.character(outputVals[,1])
+roiNames <- as.character(outputVals[which(outputVals[,3]<.05),1])
 all.data$marcat <- factor(all.data$marcat, levels=c('MJ Non-User', 'MJ Occ User', 'MJ Freq User'))
 # Now go through each roi and plot the differences after controlling for all of our covariates
 # We are also going to do the 3 group difference tests so I am going to have to prepare a matrix 
@@ -123,8 +123,9 @@ for(n in roiNames){
 			   geom_jitter(data=tmpData, aes(x=marcat, y=tmpVals),alpha=.1, position=position_jitter(0.2)) +
                            ylab(n)
 			   
-  print(tmpPlot)
+               #print(tmpPlot)
   index <- index+1
 }
 dev.off()
+groupDiffFull <- cbind(outputVals[which(outputVals[,3]<.05),], groupDiffMatrix)
 write.csv(groupDiffMatrix, "~/groupDiffMat.csv", quote=F, row.names=F)
