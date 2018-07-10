@@ -5,7 +5,7 @@
 
 ## Load library(s)
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych', 'pwr', 'ggplot2', 'caret')
+install_load('psych', 'pwr', 'ggplot2', 'caret', 'mgcv')
 
 ## Load data
 all.data <- readRDS('mjAnovaData.RDS')
@@ -14,10 +14,10 @@ all.data <- readRDS('mjAnovaData.RDS')
 summaryMetrics <- names(all.data)[c(1540,471,1550:1552)]
 outputVals <- NULL
 for(s in summaryMetrics){
-  # build a lm in all of the data
-  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor, data=all.data)
-  aovMod <- aov(tmpMod)
-  tmpVals <- summary(aovMod)[[1]]['marcat',c('F value', 'Pr(>F)')]
+    # build a lm in all of the data
+    tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
+    aovMod <- anova.gam(tmpMod)
+    tmpVals <- aovMod$pTerms.table['marcat',c('F', 'p-value')]
   tmpRow <- c(s, tmpVals)
   outputVals <- rbind(outputVals, tmpRow)
 }
@@ -26,9 +26,9 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(1553:1600)]
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + overall_psychopathology_ar_4factor + race2, data=all.data)
-  aovMod <- aov(tmpMod)
-  tmpVals <- matrix(unlist(summary(aovMod)), ncol=5, nrow=7)[4,4:5] 
+  tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
+  aovMod <- anova.gam(tmpMod)
+  tmpVals <- aovMod$pTerms.table['marcat',c('F', 'p-value')]
   tmpRow <- c(s, tmpVals)
   outputVals <- rbind(outputVals, tmpRow)
 }
@@ -37,9 +37,9 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(107:245,255:352,353:470,472:569)]
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- lm(all.data[,s] ~ ageAtScan1 + sex + averageManualRating + marcat + overall_psychopathology_ar_4factor + race2, data=all.data)
-  aovMod <- aov(tmpMod)
-  tmpVals <- matrix(unlist(summary(aovMod)), ncol=5, nrow=7)[4,4:5] 
+  tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
+  aovMod <- anova.gam(tmpMod)
+  tmpVals <- aovMod$pTerms.table['marcat',c('F', 'p-value')]
   tmpRow <- c(s, tmpVals)
   outputVals <- rbind(outputVals, tmpRow)
 }
@@ -82,8 +82,8 @@ rownames(outputVals) <- NULL
 write.csv(outputVals, "threeByOneAnovaMarcat.csv", quote=F, row.names=F)
 
 ## Now I need to go about plotting the nominally significant differences
-roiNames <- outputVals[,1]
-all.data$marcat <- factor(all.data$marcat, levels=c('MJ Non-User', 'MJ User', 'MJ Frequent User'))
+roiNames <- as.character(outputVals[,1])
+all.data$marcat <- factor(all.data$marcat, levels=c('MJ Non-User', 'MJ Occ User', 'MJ Freq User'))
 # Now go through each roi and plot the differences after controlling for all of our covariates
 # We are also going to do the 3 group difference tests so I am going to have to prepare a matrix 
 # for all of these t values and associated p values
@@ -95,14 +95,14 @@ for(n in roiNames){
   # First create the regressed values
   tmpData <- all.data[complete.cases(all.data[,n]),]
   #Now create the regressed values
-  tmpModel <- as.formula(paste(n, "~ageAtScan1+sex+race2+averageManualRating+goassessDxpmr7"))
-  tmpMod <- lm(tmpModel, data=tmpData)
-  tmpData$tmpVals <- scale(residuals(tmpMod))
+  tmpModel <- as.formula(paste(n, "~s(ageAtScan1)+sex+factor(race2)+averageManualRating+goassessDxpmr7"))
+  tmpMod <- gam(tmpModel, data=tmpData)
+  tmpData$tmpVals <- as.numeric(scale(residuals(tmpMod)))
   foo <- summarySE(data=tmpData, groupvars='marcat', measurevar='tmpVals')
-  foo$marcat <- factor(foo$marcat, levels=c('MJ Non-User', 'MJ User', 'MJ Frequent User'))
+  foo$marcat <- factor(foo$marcat, levels=c('MJ Non-User', 'MJ Occ User', 'MJ Freq User'))
   # Now fill out our groupDiffMatrix row
-  test1 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Frequent User'),])
-  test2 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ User'),])
+  test1 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Freq User'),])
+  test2 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Occ User'),])
   test3 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Non-User'),])
   fdrValues <- p.adjust(c(test1$p.value, test2$p.value, test3$p.value), method='fdr')
   outRow <- c(n,test1$statistic,test1$p.value,test2$statistic,test2$p.value,test3$statistic,test3$p.value, fdrValues)

@@ -6,7 +6,7 @@ install_load('psych', 'pwr', 'ggplot2', 'caret', 'olsrr', 'mgcv')
 ## Load the data
 all.data <- readRDS('mjAnovaData.RDS')
 ## Cretae a function which will return a density plot for the input variables
-writeDensityPlot <- function(data=all.data, var.of.interest=NULL, covariates="s(ageAtScan1)+sex+averageManualRating+race2+overall_psychopathology_ar_4factor",paraMetricValue=NULL, nonParametricValue=NULL, linMod=FALSE){
+writeDensityPlot <- function(data=all.data, var.of.interest=NULL, covariates="s(ageAtScan1)+sex+averageManualRating+factor(race2)+overall_psychopathology_ar_4factor",paraMetricValue=NULL, nonParametricValue=NULL, linMod=FALSE){
     ## First check we have a variable of interest
     if (missing(var.of.interest)) { stop("Gimme a ROI ya idiot; also make it a character string from your DF... ya idiot")}
     ## First thing we need to do is create our value
