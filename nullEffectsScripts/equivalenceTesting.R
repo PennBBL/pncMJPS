@@ -9,7 +9,7 @@
 ## This will give us a confidence interval as well..
 
 ## Load library(s)
-source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
+#source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 install_load('psych','ggplot2','caret','equivalence', 'mgcv')
 
 ## Now load the data
@@ -17,7 +17,7 @@ all.data <- readRDS('mjAnovaData.RDS')
  
 ### Begin bootstrapping down here
 ## First create our resamples
-tmp.folds <- createResample(y=all.data$marcat, 10)
+tmp.folds <- createResample(y=all.data$marcat, 1000)
 
 ## Now regress out age and sex so we can compare our groups
 orig <- all.data
