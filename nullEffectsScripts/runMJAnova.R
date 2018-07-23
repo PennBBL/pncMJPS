@@ -4,11 +4,12 @@
 # I am going to run an anova for our marcat factor for each of these metrics.
 
 ## Load library(s)
-source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
+#source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 install_load('psych', 'pwr', 'ggplot2', 'caret', 'mgcv')
 
 ## Load data
 all.data <- readRDS('mjAnovaData.RDS')
+all.data$marcat <- factor(all.data$marcat, levels=c("MJ Non-User", "MJ Occ User", "MJ Freq User"))
 
 ## Now go through the summary metrics and check for any 3x1 differences
 summaryMetrics <- names(all.data)[c(1540,471,1550:1552)]
@@ -82,20 +83,20 @@ rownames(outputVals) <- NULL
 write.csv(outputVals, "threeByOneAnovaMarcat.csv", quote=F, row.names=F)
 
 ## Now I need to go about plotting the nominally significant differences
-roiNames <- as.character(outputVals[which(outputVals[,3]<.05),1])
+roiNames <- as.character(outputVals[,1])#[which(outputVals[,3]<.05),1])
 all.data$marcat <- factor(all.data$marcat, levels=c('MJ Non-User', 'MJ Occ User', 'MJ Freq User'))
 # Now go through each roi and plot the differences after controlling for all of our covariates
 # We are also going to do the 3 group difference tests so I am going to have to prepare a matrix 
 # for all of these t values and associated p values
-groupDiffMatrix <- matrix(NA, nrow=length(roiNames), ncol=10)
-colnames(groupDiffMatrix) <- c('roi', 'N-Mt', 'N-Mp', 'N-Ft', 'N-Fp', 'M-Fp', 'M-Ft', 'N-Mpfdr', 'N-Fpfdr', 'M-Fpfdr')
+groupDiffMatrix <- matrix(NA, nrow=length(roiNames), ncol=12)
+colnames(groupDiffMatrix) <- c('roi', 'kruskall-wallis-stat', 'kruskall-wallis-p.val','N-Mt', 'N-Mp', 'N-Ft', 'N-Fp', 'M-Fp', 'M-Ft', 'N-Mpfdr', 'N-Fpfdr', 'M-Fpfdr')
 index <- 1
 pdf('anovaGroupDiffExplore.pdf')
 for(n in roiNames){
   # First create the regressed values
   tmpData <- all.data[complete.cases(all.data[,n]),]
   #Now create the regressed values
-  tmpModel <- as.formula(paste(n, "~s(ageAtScan1)+sex+factor(race2)+averageManualRating+goassessDxpmr7"))
+  tmpModel <- as.formula(paste(n, "~s(ageAtScan1)+sex+factor(race2)+averageManualRating+overall_psychopathology_ar_4factor"))
   tmpMod <- gam(tmpModel, data=tmpData)
   tmpData$tmpVals <- as.numeric(scale(residuals(tmpMod)))
   foo <- summarySE(data=tmpData, groupvars='marcat', measurevar='tmpVals')
@@ -105,7 +106,12 @@ for(n in roiNames){
   test2 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Occ User'),])
   test3 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Non-User'),])
   fdrValues <- p.adjust(c(test1$p.value, test2$p.value, test3$p.value), method='fdr')
-  outRow <- c(n,test1$statistic,test1$p.value,test2$statistic,test2$p.value,test3$statistic,test3$p.value, fdrValues)
+  # Now do a nonparametric diff in ranks test
+  krusk.val <- kruskal.test(tmpVals ~marcat, data = tmpData)
+
+
+  outRow <- c(n,krusk.val$statistic, krusk.val$p.value, test1$statistic,test1$p.value,test2$statistic,test2$p.value,test3$statistic,test3$p.value, fdrValues)
+  
   groupDiffMatrix[index,] <- outRow
   # Now create a plot for these values
   tmpPlot <- ggplot(foo, aes(x=marcat, y=tmpVals)) + 
@@ -127,5 +133,22 @@ for(n in roiNames){
   index <- index+1
 }
 dev.off()
-groupDiffFull <- cbind(outputVals[which(outputVals[,3]<.05),], groupDiffMatrix)
-write.csv(groupDiffMatrix, "~/groupDiffMat.csv", quote=F, row.names=F)
+
+## Now apply fdr correction to the kruskall wallis p values
+# Now add in our multiple comparisions and what not
+pValFDR <- rep(NA, dim(outputVals)[1])
+pValFDR[6:17] <- p.adjust(as.numeric(groupDiffMatrix[6:17,3]), method='fdr')
+pValFDR[18:29] <- p.adjust(as.numeric(groupDiffMatrix[18:29,3]), method='fdr')
+pValFDR[30:41] <- p.adjust(as.numeric(groupDiffMatrix[30:41,3]), method='fdr')
+pValFDR[42:53] <- p.adjust(as.numeric(groupDiffMatrix[42:53,3]), method='fdr')
+pValFDR[54:192] <- p.adjust(as.numeric(groupDiffMatrix[54:192,3]), method='fdr')
+pValFDR[193:290] <- p.adjust(as.numeric(groupDiffMatrix[193:290,3]), method='fdr')
+pValFDR[291:408] <- p.adjust(as.numeric(groupDiffMatrix[291:408,3]), method='fdr')
+pValFDR[409:506] <- p.adjust(as.numeric(groupDiffMatrix[409:506,3]), method='fdr')
+groupDiffMatrix <- cbind(groupDiffMatrix, pValFDR)
+
+groupDiffFull <- cbind(outputVals, groupDiffMatrix)
+write.csv(groupDiffFull, "groupDiffMat.csv", quote=F, row.names=F)
+
+# Now write out the regions with nominally significant F stats
+write.csv(groupDiffFull[which(groupDiffFull[,3]<.05),], "nominallySigVals.csv", quote=F, row.names=F)
