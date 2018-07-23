@@ -60,7 +60,7 @@ returnColorScale <- function(){
 }
 
 ## Now identify our variables of interest
-roi.of.interest <- c(1540,1565:1576)
+roi.of.interest <- c(1932,1860,1894,1927,1928,1889,1923,1886,1920,1868,1902,1887,1921)
 
 ## Now reduce our data to the
 all.data.plot <- all.data[complete.cases(all.data[,roi.of.interest]),]
@@ -83,6 +83,7 @@ for(s in roi.of.interest){
 
 ## Now produce a density plot for each variable
 pdf('fig2.pdf')#,units='in',res=300,width=10,height=8)
+tmpStringNames <- c("Mean Cortical Thickness", "Left Limbic Lobe", "Right Limbic Lobe", "RM ME", "RM ME", "Left Frontal Lobe", "Right Frontal Lobe", "Left Parietal Lobe", "Right Parietal Lobe", "Left Occipital Lobe", "Right Occipital Lobe", "Left Temporal Lobe", "Right Temporal Lobe")
 for(i in 1:dim(output.values.nl)[1]){
     tmp.plot <- writeDensityPlot(data=all.data.plot, paraMetricValue=output.values.nl[i,2], nonParametricValue=output.values.nl[i,3], var.of.interest=output.values.nl[i,1])
     ## Now prepare a new x axis name
@@ -90,7 +91,7 @@ for(i in 1:dim(output.values.nl)[1]){
     tmp.string <- gsub(x=tmp.string, pattern="L_", replacement="Left ")
     tmp.string <- gsub(x=tmp.string, pattern="R_", replacement="Right ")
     tmp.string <- gsub(x=tmp.string, pattern="_", replacement=" ")
-    if(i ==1){tmp.string <- "Mean Cortical Thickness"}
+    tmp.string <- tmpStringNames[i]
     # Now remove the "density fdrom the graph"
     tmp.plot <- tmp.plot + theme(axis.title.y = element_text(color="white")) + xlab(tmp.string)
     print(tmp.plot)

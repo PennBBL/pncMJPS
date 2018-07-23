@@ -28,22 +28,22 @@ writeDensityPlot <- function(data=all.data, var.of.interest=NULL, covariates="s(
     
     ## Now create our density plot
     out.hist <- ggplot(tmp.data, aes(tmpvals)) +
-    geom_density(data=subset(tmp.data,marcat=='MJ Non-User'), fill="#009E73",alpha=.4) +
-    geom_density(data=subset(tmp.data,marcat=='MJ Occ User'), fill="#9ad0f3", alpha=.4) +
-    geom_density(data=subset(tmp.data,marcat=='MJ Freq User'), fill="#D55E00",alpha=.4) +
-    coord_cartesian(xlim=c(-5, 5), ylim=c(0,.9)) +
-    xlab(x.ax.name) +
-    theme_bw() +
-    theme(text = element_text(size=30))
-    
+      geom_density(data=subset(tmp.data,marcat=='MJ Non-User'), fill="#009E73",alpha=.4) +
+      geom_density(data=subset(tmp.data,marcat=='MJ Occ User'), fill="#9ad0f3", alpha=.4) +
+      geom_density(data=subset(tmp.data,marcat=='MJ Freq User'), fill="#D55E00",alpha=.4) +
+      coord_cartesian(xlim=c(-5, 5), ylim=c(0,.55)) +
+      xlab(x.ax.name) +
+      theme_bw() +
+      theme(text = element_text(size=30))
+      
     ## Now create our text strings to add to the density plot
     if(!identical(paraMetricValue, NULL)){
-        f.string <- paste("F-statistic = ",round(as.numeric(paraMetricValue), digits=3))
-        out.hist <- out.hist + annotate("text",  x=Inf, y = Inf, label = f.string, vjust=1.5, hjust=1, parse = F, size=10)
+      f.string <- paste("F-statistic = ",round(as.numeric(paraMetricValue), digits=3))
+      out.hist <- out.hist + annotate("text",  x=Inf, y = Inf, label = f.string, vjust=1.5, hjust=1, parse = F, size=10)
     }
     if(!identical(nonParametricValue, NULL)){
-        chi.string <- paste("Kruskal-Wallis H = ",round(as.numeric(nonParametricValue), digits=3))
-        out.hist <- out.hist + annotate("text",  x=Inf, y = Inf, label = chi.string, vjust=3.5, hjust=1, parse=F, size=10)
+      chi.string <- paste("Kruskal-Wallis H = ",round(as.numeric(nonParametricValue), digits=3))
+      out.hist <- out.hist + annotate("text",  x=Inf, y = Inf, label = chi.string, vjust=3.5, hjust=1, parse=F, size=10)
     }
     # Now return the object
     return(out.hist)
@@ -60,7 +60,8 @@ returnColorScale <- function(){
 }
 
 ## Now identify our variables of interest
-roi.of.interest <- c(1540,1565:1576)
+roi.of.interest <- c(1550:1552,109,110,111,112,114,115,127,128,129,130,131,132, 121, 122)
+roi.of.interest <- c(1998, 1988, 1986, 1947, 1961, 1945, 1960, 1938, 1956, 1944, 1959, 1940, 1958, 1939, 1957, 1937, 1955)
 
 ## Now reduce our data to the
 all.data.plot <- all.data[complete.cases(all.data[,roi.of.interest]),]
@@ -82,18 +83,20 @@ for(s in roi.of.interest){
 }
 
 ## Now produce a density plot for each variable
-pdf('fig2.pdf')#,units='in',res=300,width=10,height=8)
+pdf('fig1.pdf')#,units='in',res=300,width=10,height=8)
 for(i in 1:dim(output.values.nl)[1]){
     tmp.plot <- writeDensityPlot(data=all.data.plot, paraMetricValue=output.values.nl[i,2], nonParametricValue=output.values.nl[i,3], var.of.interest=output.values.nl[i,1])
     ## Now prepare a new x axis name
-    tmp.string <- gsub(x=output.values.nl[i,1], pattern="mprage_jlfLobe_ct_", replacement="")
-    tmp.string <- gsub(x=tmp.string, pattern="L_", replacement="Left ")
-    tmp.string <- gsub(x=tmp.string, pattern="R_", replacement="Right ")
-    tmp.string <- gsub(x=tmp.string, pattern="_", replacement=" ")
-    if(i ==1){tmp.string <- "Mean Cortical Thickness"}
+    tmp.string <- gsub(x=output.values.nl[i,1], pattern="mprage_jlf_vol_", replacement="")
+    tmp.string <- gsub(x=tmp.string, pattern="ft.", replacement="ft ")
+    tmp.string <- gsub(x=tmp.string, pattern="ht.", replacement="ht ")
+    tmp.string <- gsub(x=tmp.string, pattern=".area", replacement=" Area")
+    tmp.string <- gsub(x=tmp.string, pattern=".Proper", replacement=" Proper")
+    if(i ==1){tmp.string <- "ICV"}
+    if(i ==2){tmp.string <- "Gray Matter Volume"}
+    if(i ==3){tmp.string <- "White Matter Volume"}
     # Now remove the "density fdrom the graph"
     tmp.plot <- tmp.plot + theme(axis.title.y = element_text(color="white")) + xlab(tmp.string)
     print(tmp.plot)
 }
 dev.off()
-

@@ -9,7 +9,7 @@
 ## This will give us a confidence interval as well..
 
 ## Load library(s)
-source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
+#source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
 install_load('psych','ggplot2','caret','equivalence', 'mgcv')
 
 ## Now load the data
@@ -21,7 +21,7 @@ tmp.folds <- createResample(y=all.data$marcat, 1000)
 
 ## Now regress out age and sex so we can compare our groups
 orig <- all.data
-base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor")
+base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor")
 vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
@@ -178,25 +178,25 @@ dev.off()
 
 #### Now run equivalence testing down here
 equiv.data <- orig
-base.model <- paste("ageAtScan1 + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor")
+base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor")
 vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
   tmp.col <- rep(NA, 1504)
-  tmp.mod <- gam(tmp.formula, data=all.data)
+  tmp.mod <- gam(tmp.formula, data=equiv.data)
   index <- which(complete.cases(all.data[,v]))
-  all.data[index,name.val] <- NA
-  all.data[index,name.val] <- scale(residuals(tmp.mod))
+  equiv.data[index,name.val] <- NA
+  equiv.data[index,name.val] <- scale(residuals(tmp.mod))
 }
 
 ## Now run through all of our tost tests!
 output.tost.vals <- NULL
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
-  test.val.one <- tost(x=equiv.data[which(equiv.data$marcat=='MJ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
-  test.val.two <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Frequent User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
-  test.val.three <- tost(x=equiv.data[which(equiv.data$marcat=='MJ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Frequent User"),v], paired=F)
+  test.val.one <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
+  test.val.two <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Freq User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
+  test.val.three <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Freq User"),v], paired=F)
   ## Now prepare our output values
   output.row <- c(name.val, test.val.one$tost.p.value, test.val.two$tost.p.value, test.val.three$tost.p.value)
   output.tost.vals <- rbind(output.tost.vals, output.row)
