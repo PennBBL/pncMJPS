@@ -1,6 +1,6 @@
 ## Load library(s)
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-
+install_load('MASS')
 ## Load data
 mjData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
 mjData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/n9498_go1_foradon_061518.csv')
@@ -37,7 +37,7 @@ psData <- merge(psData, demoData, by=c('bblid', 'scanid'))
 psData <- merge(psData, mjData)
 
 all.data <- read.csv('/data/jux/BBL/projects/pncMJPS/scripts/07_MJEffects/scripts/n1601_imagingDataDump_2018-04-04.csv')
-all.data <- merge(all.data, psData)
+all.data <- merge(all.data, psData, by=c('bblid', 'scanid'), suffixes=c(".all", ""))
 
 # Now add the clinical factor scores
 fac.data <- read.csv('/data/joy/BBL/studies/pnc/n9498_dataFreeze/clinical/n9498_goassess_itemwise_bifactor_scores_age_regressed_20170131.csv')
@@ -53,14 +53,15 @@ fs.values <- read.csv('/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t
 all.data <- merge(all.data, fs.values)
 
 # Now remove all subjects that have no marcat variable, are older than 14, do not pass structural QA, and endorsed fake drugs
-all.data <- all.data[-which(all.data$marcat==''),]
 all.data <- all.data[which((all.data$ageAtScan1/12)>=14),]
+all.data <- all.data[-which(all.data$marcat==''),]
 #all.data <- all.data[-which(all.data$averageManualRating==0),]
 all.data <- all.data[which(all.data$t1Exclude==0),]
 all.data <- all.data[-which(all.data$bblid %in% fakeData$bblid),]
-all.data <- all.data[-which(all.data$dosage==1),]
 
 ## Now save our RDS file
+saveRDS(object=all.data, file="mjAnovaDataWithDosage1.RDS")
+all.data <- all.data[-which(all.data$dosage==1),]
 saveRDS(object=all.data, file="mjAnovaData.RDS")
 
 ## Now prepare table 1 our demographics and what not
@@ -78,10 +79,15 @@ ageRow <- t(c(ageVals[2,3:4]/12, ageVals[3,3:4]/12, ageVals[1,3:4]/12, t.val.oc.
 prop.val.oc.vs.non <- prop.test(table(all.data$marcat, all.data$sex)[c(4,3),])
 prop.val.oc.vs.freq <- prop.test(table(all.data$marcat, all.data$sex)[c(2,4),])
 prop.val.freq.vs.non <- prop.test(table(all.data$marcat, all.data$sex)[c(2,3),])
+prop.val.all <- prop.test(table(all.data$marcat, all.data$sex)[c(2,3,4),])
 n.row <- c(ageVals[2,2], percentFemale[3], ageVals[3,2], percentFemale[4], ageVals[1,2], percentFemale[2], prop.val.oc.vs.non$statistic, prop.val.oc.vs.non$p.value, prop.val.oc.vs.freq$statistic, prop.val.oc.vs.freq$p.value, prop.val.freq.vs.non$statistic, prop.val.freq.vs.non$p.value)
 
 ## Now report race
 out.table <- table(all.data$race2, all.data$marcat)
+## Now test for race proportion differences
+all.data$raceTest <- 1
+all.data$raceTest[which(all.data$race2!=1)] <- 2
+race.prop.test <- chisq.test(x=all.data$raceTest, y=all.data$marcat)
 
 ## Now do the wrat values
 wratVals <- summarySE(data=all.data, groupvars='marcat', measurevar='wrat4crstd', na.rm=T)
@@ -100,6 +106,14 @@ dosagePercent <- table(all.data$dosage, all.data$marcat)
 
 ## Now report alcohol values
 alc.table <- table(all.data$marcat, all.data$cnb_substance_alc_0501)
+# now test our alcohol prop differences
+all.data$alcTest <- 1
+all.data$alcTest[which(all.data$cnb_substance_alc_0501<5)] <- 3
+all.data$alcTest[which(all.data$cnb_substance_alc_0501>=5)] <- 2
+alc.prop.test <- chisq.test(x=all.data$alcTest, y=all.data$marcat)
+alc.prop.test.occ.vs.non <- chisq.test(x=all.data$alcTest[-which(all.data$marcat=='MJ Freq User')], y=all.data$marcat[-which(all.data$marcat=='MJ Freq User')])
+alc.prop.test.freq.vs.non <- chisq.test(x=all.data$alcTest[-which(all.data$marcat=='MJ Occ User')], y=all.data$marcat[-which(all.data$marcat=='MJ Occ User')])
+alc.prop.test.freq.vs.occ <- chisq.test(x=all.data$alcTest[-which(all.data$marcat=='MJ Non-User')], y=all.data$marcat[-which(all.data$marcat=='MJ Non-User')])
 
 ## Now onto our pathology factor scores
 oapVals <- summarySE(data=all.data, groupvars='marcat', measurevar='overall_psychopathology_ar_4fact', na.rm=T)
@@ -125,5 +139,3 @@ t.val.oc.vs.non <- t.test(psychosis_ar_4factor ~ marcat, data=all.data[-which(al
 t.val.oc.vs.freq <- t.test(psychosis_ar_4factor ~ marcat, data=all.data[-which(all.data$marcat=="MJ Non-User"),])
 t.val.non.vs.freq <- t.test(psychosis_ar_4factor ~ marcat, data=all.data[-which(all.data$marcat=="MJ Occ User"),])
 aov.val <- aov(psychosis_ar_4factor ~ marcat, data=all.data)
-
-
