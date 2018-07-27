@@ -1,4 +1,4 @@
-# AFGR Aprin 2018
+# AFGR April 2018
 # This script is gfoing to be used to assess variance across our three marcat labels.
 # It is going to go from a very coarse, whole brain, lobular, and then specific JLF labels.
 # I am going to run an anova for our marcat factor for each of these metrics.
@@ -88,8 +88,8 @@ all.data$marcat <- factor(all.data$marcat, levels=c('MJ Non-User', 'MJ Occ User'
 # Now go through each roi and plot the differences after controlling for all of our covariates
 # We are also going to do the 3 group difference tests so I am going to have to prepare a matrix 
 # for all of these t values and associated p values
-groupDiffMatrix <- matrix(NA, nrow=length(roiNames), ncol=12)
-colnames(groupDiffMatrix) <- c('roi', 'kruskall-wallis-stat', 'kruskall-wallis-p.val','N-Mt', 'N-Mp', 'N-Ft', 'N-Fp', 'M-Fp', 'M-Ft', 'N-Mpfdr', 'N-Fpfdr', 'M-Fpfdr')
+groupDiffMatrix <- matrix(NA, nrow=length(roiNames), ncol=15)
+colnames(groupDiffMatrix) <- c('roi', 'kruskall-wallis-stat', 'kruskall-wallis-p.val','N-Mt', 'N-Mp', 'N-Ft', 'N-Fp', 'M-Fp', 'M-Ft', 'N-Mpfdr', 'N-Fpfdr', 'M-Fpfdr', 'N-Md', 'N-Fd', 'M-Fd')
 index <- 1
 pdf('anovaGroupDiffExplore.pdf')
 for(n in roiNames){
@@ -106,11 +106,15 @@ for(n in roiNames){
   test2 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Occ User'),])
   test3 <- t.test(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Non-User'),])
   fdrValues <- p.adjust(c(test1$p.value, test2$p.value, test3$p.value), method='fdr')
+  # Now calculate cohen d's
+  occ.vs.non.d <- effsize::cohen.d(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Freq User'),])$estimate
+  non.vs.freq.d <- effsize::cohen.d(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Occ User'),])$estimate
+  freq.vs.occ.d <- effsize::cohen.d(tmpVals~marcat, data=tmpData[-which(tmpData$marcat=='MJ Non-User'),])$estimate
   # Now do a nonparametric diff in ranks test
   krusk.val <- kruskal.test(tmpVals ~marcat, data = tmpData)
 
 
-  outRow <- c(n,krusk.val$statistic, krusk.val$p.value, test1$statistic,test1$p.value,test2$statistic,test2$p.value,test3$statistic,test3$p.value, fdrValues)
+  outRow <- c(n,krusk.val$statistic, krusk.val$p.value, test1$statistic,test1$p.value,test2$statistic,test2$p.value,test3$statistic,test3$p.value, fdrValues, occ.vs.non.d, non.vs.freq.d, freq.vs.occ.d)
   
   groupDiffMatrix[index,] <- outRow
   # Now create a plot for these values
@@ -137,6 +141,21 @@ dev.off()
 ## Now apply fdr correction to the kruskall wallis p values
 # Now add in our multiple comparisions and what not
 pValFDR <- rep(NA, dim(outputVals)[1])
+pValFDR[6:17] <- p.adjust(as.numeric(groupDiffMatrix[6:17,7]), method='fdr')
+pValFDR[18:29] <- p.adjust(as.numeric(groupDiffMatrix[18:29,7]), method='fdr')
+pValFDR[30:41] <- p.adjust(as.numeric(groupDiffMatrix[30:41,7]), method='fdr')
+pValFDR[42:53] <- p.adjust(as.numeric(groupDiffMatrix[42:53,7]), method='fdr')
+pValFDR[54:192] <- p.adjust(as.numeric(groupDiffMatrix[54:192,7]), method='fdr')
+pValFDR[193:290] <- p.adjust(as.numeric(groupDiffMatrix[193:290,7]), method='fdr')
+pValFDR[291:408] <- p.adjust(as.numeric(groupDiffMatrix[291:408,7]), method='fdr')
+pValFDR[409:506] <- p.adjust(as.numeric(groupDiffMatrix[409:506,7]), method='fdr')
+pValFDRNonVsFrequentT <- pValFDR
+groupDiffMatrix <- cbind(groupDiffMatrix, pValFDRNonVsFrequentT)
+groupDiffFull <- cbind(outputVals, groupDiffMatrix)
+
+
+## Now look fdr correct all of the t values for the frequent vs non group comparisons
+pValFDR <- rep(NA, dim(outputVals)[1])
 pValFDR[6:17] <- p.adjust(as.numeric(groupDiffMatrix[6:17,3]), method='fdr')
 pValFDR[18:29] <- p.adjust(as.numeric(groupDiffMatrix[18:29,3]), method='fdr')
 pValFDR[30:41] <- p.adjust(as.numeric(groupDiffMatrix[30:41,3]), method='fdr')
@@ -147,8 +166,44 @@ pValFDR[291:408] <- p.adjust(as.numeric(groupDiffMatrix[291:408,3]), method='fdr
 pValFDR[409:506] <- p.adjust(as.numeric(groupDiffMatrix[409:506,3]), method='fdr')
 groupDiffMatrix <- cbind(groupDiffMatrix, pValFDR)
 
-groupDiffFull <- cbind(outputVals, groupDiffMatrix)
+## Now write out all of these values
 write.csv(groupDiffFull, "groupDiffMat.csv", quote=F, row.names=F)
 
 # Now write out the regions with nominally significant F stats
 write.csv(groupDiffFull[which(groupDiffFull[,3]<.05),], "nominallySigVals.csv", quote=F, row.names=F)
+
+
+## Now test the interactions
+summaryMetrics <- names(all.data)[c(1540,471,1550:1552)]
+outputVals <- NULL
+for(s in summaryMetrics){
+    # build a lm in all of the data
+    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
+    aovMod <- anova(tmpMod)
+    tmpVals <- aovMod['poly(ageAtScan1, 3):marcat',c("F value","Pr(>F)")]
+    tmpRow <- c(s, tmpVals)
+    outputVals <- rbind(outputVals, tmpRow)
+}
+
+# Now do the lobular values
+summaryMetrics <- names(all.data)[c(1553:1600)]
+for(s in summaryMetrics){
+    # build a lm in all of the data
+    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
+    aovMod <- anova(tmpMod)
+    tmpVals <- aovMod['poly(ageAtScan1, 3):marcat',c("F value","Pr(>F)")]
+    tmpRow <- c(s, tmpVals)
+    outputVals <- rbind(outputVals, tmpRow)
+}
+
+# Now do individual ROI's
+summaryMetrics <- names(all.data)[c(107:245,255:352,353:470,472:569)]
+for(s in summaryMetrics){
+    # build a lm in all of the data
+    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
+    aovMod <- anova(tmpMod)
+    tmpVals <- aovMod['poly(ageAtScan1, 3):marcat',c("F value","Pr(>F)")]
+    tmpRow <- c(s, tmpVals)
+    outputVals <- rbind(outputVals, tmpRow)
+}
+write.csv(outputVals, "interactionFandPStats.csv", quote=F, row.names=F)
