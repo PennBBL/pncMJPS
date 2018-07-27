@@ -25,4 +25,4 @@ z.tot <- apply(z.score.vals, 1, function(x) mean(x, na.rm=T))
 out.data$alchoholZScore <- z.tot
 
 ## Now write the csv
-write.csv(out.data, "~/alcData.csv", quote=F, row.names=F)
+write.csv(out.data, "alcData.csv", quote=F, row.names=F)
