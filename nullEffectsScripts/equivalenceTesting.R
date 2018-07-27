@@ -10,7 +10,7 @@
 
 ## Load library(s)
 #source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych','ggplot2','caret','equivalence', 'mgcv')
+install_load('psych','ggplot2','caret','equivalence', 'mgcv', 'TOSTER')
 
 ## Now load the data
 all.data <- readRDS('mjAnovaData.RDS')
@@ -197,8 +197,13 @@ for(v in vars.of.interest){
   test.val.one <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
   test.val.two <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Freq User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
   test.val.three <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Freq User"),v], paired=F)
+  print(v)
+  mean.vals <- summarySE(data=equiv.data, measurevar=v, groupvars='marcat', na.rm=T)
+  tost.one <- TOSTtwo(m1=mean.vals[2,3], sd1=mean.vals$sd[2], m2=mean.vals[3,3], sd2=mean.vals$sd[3], n1=mean.vals$N[2], n2=mean.vals$N[3], var.equal=F, low_eqbound=-.6, high_eqbound=.6)
+  tost.two <- TOSTtwo(m1=mean.vals[2,3], sd1=mean.vals$sd[2], m2=mean.vals[1,3], sd2=mean.vals$sd[1], n1=mean.vals$N[2], n2=mean.vals$N[1], var.equal=F, low_eqbound=-.6, high_eqbound=.6)
+  tost.three <- TOSTtwo(m1=mean.vals[3,3], sd1=mean.vals$sd[3], m2=mean.vals[1,3], sd2=mean.vals$sd[1], n1=mean.vals$N[3], n2=mean.vals$N[1], var.equal=F, low_eqbound=-.6, high_eqbound=.6)
   ## Now prepare our output values
-  output.row <- c(name.val, test.val.one$tost.p.value, test.val.two$tost.p.value, test.val.three$tost.p.value)
+  output.row <- c(name.val, test.val.one$tost.p.value, test.val.two$tost.p.value, test.val.three$tost.p.value, tost.one$TOST_p1, tost.two$TOST_p1, tost.three$TOST_p1)
   output.tost.vals <- rbind(output.tost.vals, output.row)
 }
 # Now perform fdr correction on our p values
