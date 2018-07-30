@@ -10,26 +10,26 @@
 
 ## Load library(s)
 #source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych','ggplot2','caret','equivalence', 'mgcv', 'TOSTER')
+install_load('psych','ggplot2','caret','equivalence', 'mgcv','TOSTER','foreach','doParallel')
 
 ## Now load the data
 all.data <- readRDS('mjAnovaData.RDS')
 all.data$marcat <- factor(all.data$marcat, levels=c("MJ Non-User", "MJ Occ User", "MJ Freq User"))
 alc.data <- read.csv('alcData.csv')
 all.data <- merge(all.data, alc.data)
- 
+all.data <- all.data[complete.cases(all.data[,"alchoholZScore"]),]
+
 ### Begin bootstrapping down here
 ## First create our resamples
-tmp.folds <- createResample(y=all.data$marcat, 1000)
+tmp.folds <- createResample(y=all.data$marcat, 10)
 
 ## Now regress out age and sex so we can compare our groups
 orig <- all.data
-base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor + alchoholZScore")
+base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor + s(alchoholZScore)")
 vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
-  tmp.col <- rep(NA, 1504)
   tmp.mod <- gam(tmp.formula, data=all.data)
   index <- which(complete.cases(all.data[,c(name.val, "alchoholZScore")]))
   all.data[index,name.val] <- NA
@@ -37,8 +37,10 @@ for(v in vars.of.interest){
 }
 
 ## Now go through each value and find our bootstrapped mean differences
+cl <- makeCluster(8)
+registerDoParallel(cl)
 output.differences <- NULL
-for(q in 1:length(tmp.folds)){
+output.differences <- foreach(q=1:length(tmp.folds), .combine='rbind') %dopar% {
   tmpData <- all.data[tmp.folds[[q]],]
   output.vals.tmp <- NULL
   for(v in vars.of.interest){
@@ -48,8 +50,7 @@ for(q in 1:length(tmp.folds)){
     output.row <- c(name.val, t(mean.values[,name.val]))
     output.vals.tmp <- rbind(output.vals.tmp, output.row)
   }
-  output.differences <- rbind(output.differences, output.vals.tmp)
-  print(q)
+  output.vals.tmp
 }
 colnames(output.differences) <- c('ROI', 'MJ Frequent', 'Non-User', 'MJ User')
 rownames(output.differences) <- NULL
@@ -181,14 +182,15 @@ dev.off()
 
 #### Now run equivalence testing down here
 equiv.data <- orig
-base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor+alchoholZScore")
+equiv.data <- equiv.data[complete.cases(equiv.data$alchoholZScore),]
+base.model <- paste("s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor+s(alchoholZScore)")
 vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
   tmp.col <- rep(NA, 1504)
   tmp.mod <- gam(tmp.formula, data=equiv.data)
-  index <- which(complete.cases(all.data[,c(name.val, "alchoholZScore")]))
+  index <- which(complete.cases(equiv.data[,c(name.val, "alchoholZScore")]))
   equiv.data[index,name.val] <- NA
   equiv.data[index,name.val] <- scale(residuals(tmp.mod))
 }

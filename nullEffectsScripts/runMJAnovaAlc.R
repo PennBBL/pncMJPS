@@ -12,13 +12,25 @@ all.data <- readRDS('mjAnovaData.RDS')
 all.data$marcat <- factor(all.data$marcat, levels=c("MJ Non-User", "MJ Occ User", "MJ Freq User"))
 alc.data <- read.csv('alcData.csv')
 all.data <- merge(all.data, alc.data)
+all.data <- all.data[complete.cases(all.data$alchoholZScore),]
+
+## Now create an alcohol usage factor
+cut.vals <- quantile(all.data$alchoholZScore, na.rm=T, probs=c(.33, .67))
+all.data$alcFactor <- NA
+all.data$alcFactor[which(all.data$alchoholZScore<=cut.vals[1])] <- "LowAlcGroup"
+all.data$alcFactor[which(all.data$alchoholZScore>cut.vals[1] & all.data$alchoholZScore<=cut.vals[2])] <- "MidAlcGroup"
+all.data$alcFactor[which(all.data$alchoholZScore>cut.vals[2])] <- "HiAlcGroup"
+all.data$alcFactor <- factor(all.data$alcFactor, levels=c("LowAlcGroup", "MidAlcGroup", "HiAlcGroup"))
+
+# Now create a scaled alcohol variable
+all.data$alcScale <- log(range01(all.data$alchoholZScore)+1)
 
 ## Now go through the summary metrics and check for any 3x1 differences
 summaryMetrics <- names(all.data)[c(1540,471,1550:1552)]
 outputVals <- NULL
 for(s in summaryMetrics){
     # build a lm in all of the data
-    tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor + alchoholZScore, data=all.data)
+    tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + race2 + overall_psychopathology_ar_4factor + alcScale, data=all.data)
     aovMod <- anova.gam(tmpMod)
     tmpVals <- aovMod$pTerms.table['marcat',c('F', 'p-value')]
   tmpRow <- c(s, tmpVals)
@@ -29,7 +41,7 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(1553:1600)]
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor + alchoholZScore, data=all.data)
+  tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor + alcScale, data=all.data)
   aovMod <- anova.gam(tmpMod)
   tmpVals <- aovMod$pTerms.table['marcat',c('F', 'p-value')]
   tmpRow <- c(s, tmpVals)
@@ -40,7 +52,7 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(107:245,255:352,353:470,472:569)]
 for(s in summaryMetrics){
   # build a lm in all of the data
-  tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor + alchoholZScore, data=all.data)
+  tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor + alcScale, data=all.data)
   aovMod <- anova.gam(tmpMod)
   tmpVals <- aovMod$pTerms.table['marcat',c('F', 'p-value')]
   tmpRow <- c(s, tmpVals)
@@ -97,8 +109,9 @@ pdf('anovaGroupDiffExplore.pdf')
 for(n in roiNames){
   # First create the regressed values
   tmpData <- all.data[complete.cases(all.data[,c(n, "alchoholZScore")]),]
+  tmpData$race2 <- factor(tmpData$race2)
   #Now create the regressed values
-  tmpModel <- as.formula(paste(n, "~s(ageAtScan1)+sex+factor(race2)+averageManualRating+overall_psychopathology_ar_4factor + alchoholZScore"))
+  tmpModel <- as.formula(paste(n, "~s(ageAtScan1)+sex+race2+averageManualRating+overall_psychopathology_ar_4factor+alcScale"))
   tmpMod <- gam(tmpModel, data=tmpData)
   tmpData$tmpVals <- as.numeric(scale(residuals(tmpMod)))
   foo <- summarySE(data=tmpData, groupvars='marcat', measurevar='tmpVals')
@@ -127,7 +140,7 @@ for(n in roiNames){
 			   #geom_jitter(data=tmpData, aes(x=marcat, y=tmpVals),alpha=.1, position=position_jitter(0.2)) +
                            ylab(n)
 			   
-  print(tmpPlot)
+               #print(tmpPlot)
   tmpPlot <- ggplot(foo, aes(x=marcat, y=tmpVals)) + 
                            geom_bar(stat="identity", position=position_dodge(), size=.1) + 
                            geom_errorbar(aes(ymin=tmpVals-se, ymax=tmpVals+se), 
@@ -181,7 +194,7 @@ summaryMetrics <- names(all.data)[c(1540,471,1550:1552)]
 outputVals <- NULL
 for(s in summaryMetrics){
     # build a lm in all of the data
-    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor + alchoholZScore, data=all.data)
+    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor + alcScale, data=all.data)
     aovMod <- anova(tmpMod)
     tmpVals <- aovMod['poly(ageAtScan1, 3):marcat',c("F value","Pr(>F)")]
     tmpRow <- c(s, tmpVals)
@@ -192,7 +205,7 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(1553:1600)]
 for(s in summaryMetrics){
     # build a lm in all of the data
-    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor + alchoholZScore, data=all.data)
+    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor + alcScale, data=all.data)
     aovMod <- anova(tmpMod)
     tmpVals <- aovMod['poly(ageAtScan1, 3):marcat',c("F value","Pr(>F)")]
     tmpRow <- c(s, tmpVals)
@@ -203,7 +216,7 @@ for(s in summaryMetrics){
 summaryMetrics <- names(all.data)[c(107:245,255:352,353:470,472:569)]
 for(s in summaryMetrics){
     # build a lm in all of the data
-    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor + alchoholZScore, data=all.data)
+    tmpMod <- lm(all.data[,s] ~ poly(ageAtScan1,3)*marcat + sex + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor + alcScale, data=all.data)
     aovMod <- anova(tmpMod)
     tmpVals <- aovMod['poly(ageAtScan1, 3):marcat',c("F value","Pr(>F)")]
     tmpRow <- c(s, tmpVals)
