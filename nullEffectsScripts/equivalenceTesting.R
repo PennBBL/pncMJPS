@@ -10,7 +10,7 @@
 
 ## Load library(s)
 #source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych','ggplot2','caret','equivalence', 'mgcv', 'TOSTER')
+install_load('psych','ggplot2','caret','equivalence', 'mgcv','TOSTER','foreach','doParallel')
 
 ## Now load the data
 all.data <- readRDS('mjAnovaData.RDS')
@@ -34,19 +34,20 @@ for(v in vars.of.interest){
 }
 
 ## Now go through each value and find our bootstrapped mean differences
+cl <- makeCluster(8)
+registerDoParallel(cl)
 output.differences <- NULL
-for(q in 1:length(tmp.folds)){
-  tmpData <- all.data[tmp.folds[[q]],]
-  output.vals.tmp <- NULL
-  for(v in vars.of.interest){
-    name.val <- names(all.data)[v]
-    mean.values <- summarySE(data=tmpData, measurevar=name.val, groupvars='marcat', na.rm=T)
-    # Now prepare the output data
-    output.row <- c(name.val, t(mean.values[,name.val]))
-    output.vals.tmp <- rbind(output.vals.tmp, output.row)
-  }
-  output.differences <- rbind(output.differences, output.vals.tmp)
-  print(q)
+output.differences <- foreach(q=1:length(tmp.folds), .combine='rbind') %dopar% {
+    tmpData <- all.data[tmp.folds[[q]],]
+    output.vals.tmp <- NULL
+    for(v in vars.of.interest){
+        name.val <- names(all.data)[v]
+        mean.values <- summarySE(data=tmpData, measurevar=name.val, groupvars='marcat', na.rm=T)
+        # Now prepare the output data
+        output.row <- c(name.val, t(mean.values[,name.val]))
+        output.vals.tmp <- rbind(output.vals.tmp, output.row)
+    }
+    output.vals.tmp
 }
 colnames(output.differences) <- c('ROI', 'MJ Frequent', 'Non-User', 'MJ User')
 rownames(output.differences) <- NULL
@@ -58,7 +59,7 @@ output.differences$freq.minus.non <- as.numeric(as.character(output.differences[
 output.differences$freq.minus.user <- as.numeric(as.character(output.differences[,2])) - as.numeric(as.character(output.differences[,4]))
 
 ## Now write this data
-write.csv(output.differences, "~/mjBSVals.csv", quote=F, row.names=F)
+write.csv(output.differences, "mjBSVals.csv", quote=F, row.names=F)
 
 ## Now get our means and confidence intervals four our differences
 mean.vals.1 <- summarySE(data=output.differences, groupvars='ROI', measurevar='user.minus.non')
@@ -194,23 +195,33 @@ for(v in vars.of.interest){
 output.tost.vals <- NULL
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
-  test.val.one <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
-  test.val.two <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Freq User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F)
-  test.val.three <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Freq User"),v], paired=F)
+  test.val.one <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F, var.equal=F)
+  test.val.two <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Freq User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F, var.equal=F)
+  test.val.three <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Freq User"),v], paired=F, var.equal=F)
   print(v)
-  mean.vals <- summarySE(data=equiv.data, measurevar=v, groupvars='marcat', na.rm=T)
-  tost.one <- TOSTtwo(m1=mean.vals[2,3], sd1=mean.vals$sd[2], m2=mean.vals[3,3], sd2=mean.vals$sd[3], n1=mean.vals$N[2], n2=mean.vals$N[3], var.equal=F, low_eqbound=-.6, high_eqbound=.6)
-  tost.two <- TOSTtwo(m1=mean.vals[2,3], sd1=mean.vals$sd[2], m2=mean.vals[1,3], sd2=mean.vals$sd[1], n1=mean.vals$N[2], n2=mean.vals$N[1], var.equal=F, low_eqbound=-.6, high_eqbound=.6)
-  tost.three <- TOSTtwo(m1=mean.vals[3,3], sd1=mean.vals$sd[3], m2=mean.vals[1,3], sd2=mean.vals$sd[1], n1=mean.vals$N[3], n2=mean.vals$N[1], var.equal=F, low_eqbound=-.6, high_eqbound=.6)
+  test.val.four <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F, epsilon = .6, var.equal=F)
+  test.val.five <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Freq User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Non-User"),v], paired=F, epsilon = .6, var.equal=F)
+  test.val.six <- tost(x=equiv.data[which(equiv.data$marcat=='MJ Occ User'),v], y=equiv.data[which(equiv.data$marcat=="MJ Freq User"),v], paired=F, epsilon = .6, var.equal=F)
   ## Now prepare our output values
-  output.row <- c(name.val, test.val.one$tost.p.value, test.val.two$tost.p.value, test.val.three$tost.p.value, tost.one$TOST_p1, tost.two$TOST_p1, tost.three$TOST_p1)
+  output.row <- c(name.val, test.val.one$tost.p.value, test.val.two$tost.p.value, test.val.three$tost.p.value, test.val.four$tost.p.value, test.val.five$tost.p.value, test.val.six$tost.p.value)
   output.tost.vals <- rbind(output.tost.vals, output.row)
 }
 # Now perform fdr correction on our p values
 rownames(output.tost.vals) <- NULL
-output.tost.vals <- as.data.frame(cbind(output.tost.vals, apply(output.tost.vals[,2:4], 2, p.adjust)))
-output.tost.vals[,2:7] <- apply(output.tost.vals[,-1], 2, function(x) as.numeric(as.character(x)))
-colnames(output.tost.vals) <- c('ROI','MJUser.MJNonUser','Freq.MJNonUser','MJUser.Freq','MJUser.MJNonUser.Bon','Freq.MJNonUser.Bon','MJUser.Freq.Bon')
+## Now perform FDR correction
+row.grep.patterns <- c("mprage_jlf_vol_","mprage_jlf_ct_","mprage_jlf_gmd_","mprage_jlfLobe_vol_","mprage_jlfLobe_ct_","mprage_jlfLobe_gmd_")
+output.tost.corr.vals <- matrix(NA, ncol=dim(output.tost.vals)[2]-1, nrow=dim(output.tost.vals)[1])
+for(i in 1:dim(output.tost.corr.vals)[2]){
+  orig.vals.col <- i + 1
+  for(gpat in row.grep.patterns){
+      new.vals <- p.adjust(output.tost.vals[grep(gpat, output.tost.vals[,1]),orig.vals.col], method='fdr')
+      output.tost.corr.vals[grep(gpat, output.tost.vals[,1]),i] <- new.vals
+  }
+}
+output.tost.vals <- cbind(output.tost.vals, output.tost.corr.vals)
+output.tost.vals <- as.data.frame(output.tost.vals)
+output.tost.vals[,2:13] <- apply(output.tost.vals[,-1], 2, function(x) as.numeric(as.character(x)))
+colnames(output.tost.vals) <- c('ROI','MJUser.MJNonUser.5','Freq.MJNonUser.5','MJUser.Freq.5','MJUser.MJNonUser.3','Freq.MJNonUser.3','MJUser.Freq.3','MJUser.MJNonUser.5.fdr','Freq.MJNonUser.5.fdr','MJUser.Freq.5.fdr','MJUser.MJNonUser.3.fdr','Freq.MJNonUser.3.fdr','MJUser.Freq.3.fdr')
 
 ## Now combine all of these values
 output <- merge(output, output.tost.vals, by='ROI')
