@@ -10,14 +10,14 @@
 
 ## Load library(s)
 #source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych','ggplot2','caret','equivalence', 'mgcv','TOSTER','foreach','doParallel')
+install_load('psych','ggplot2','caret','equivalence', 'mgcv','TOSTER','foreach','doParallel', 'simpleboot')
 
 ## Now load the data
 all.data <- readRDS('mjAnovaData.RDS')
  
 ### Begin bootstrapping down here
 ## First create our resamples
-tmp.folds <- createResample(y=all.data$marcat, 1000)
+tmp.folds <- createResample(y=all.data$marcat, 100)
 
 ## Now regress out age and sex so we can compare our groups
 orig <- all.data
@@ -26,154 +26,117 @@ vars.of.interest <- c(107:245, 255:352, 353:470,471,1540,1550:1588)
 for(v in vars.of.interest){
   name.val <- names(all.data)[v]
   tmp.formula <- as.formula(paste(name.val, "~", base.model))
-  tmp.col <- rep(NA, 1504)
   tmp.mod <- gam(tmp.formula, data=all.data)
   index <- which(complete.cases(all.data[,v]))
   all.data[index,name.val] <- NA
   all.data[index,name.val] <- scale(residuals(tmp.mod))
 }
 
-## Now go through each value and find our bootstrapped mean differences
+## Now I need to loop through each ROI
+## and calculate the groupwise differences
 cl <- makeCluster(8)
 registerDoParallel(cl)
-output.differences <- NULL
-output.differences <- foreach(q=1:length(tmp.folds), .combine='rbind') %dopar% {
-    tmpData <- all.data[tmp.folds[[q]],]
-    output.vals.tmp <- NULL
-    for(v in vars.of.interest){
-        name.val <- names(all.data)[v]
-        mean.values <- summarySE(data=tmpData, measurevar=name.val, groupvars='marcat', na.rm=T)
-        # Now prepare the output data
-        output.row <- c(name.val, t(mean.values[,name.val]))
-        output.vals.tmp <- rbind(output.vals.tmp, output.row)
-    }
-    output.vals.tmp
+output.ci <- foreach(q=1:length(vars.of.interest), .combine='rbind', .packages='simpleboot') %dopar% {
+    # First isolate our values
+    v <- vars.of.interest[q]
+    name.val <- names(all.data)[v]
+    tmp.dat <- all.data[,c(name.val, 'marcat')]
+    non.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Non-User"),1]
+    occ.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Occ User"),1]
+    fre.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Freq User"),1]
+    # Now calculate our bootstrapped differences
+    n.v.o <- two.boot(non.vals, occ.vals, mean, 10000)
+    n.v.f <- two.boot(non.vals, fre.vals, mean, 10000)
+    f.v.o <- two.boot(fre.vals, occ.vals, mean, 10000)
+    # Now return our confidence intervals
+    out.row <- c(name.val,boot.ci(n.v.o)$basic[4:5],boot.ci(n.v.f)$basic[4:5],boot.ci(f.v.o)$basic[4:5])
+    out.row
 }
-colnames(output.differences) <- c('ROI', 'MJ Frequent', 'Non-User', 'MJ User')
-rownames(output.differences) <- NULL
-output.differences <- as.data.frame(output.differences)
-
-## Now find our mean differences
-output.differences$user.minus.non <- as.numeric(as.character(output.differences[,4])) - as.numeric(as.character(output.differences[,3]))
-output.differences$freq.minus.non <- as.numeric(as.character(output.differences[,2])) - as.numeric(as.character(output.differences[,3]))
-output.differences$freq.minus.user <- as.numeric(as.character(output.differences[,2])) - as.numeric(as.character(output.differences[,4]))
-
-## Now write this data
-write.csv(output.differences, "mjBSVals.csv", quote=F, row.names=F)
-
-## Now get our means and confidence intervals four our differences
-mean.vals.1 <- summarySE(data=output.differences, groupvars='ROI', measurevar='user.minus.non')
-mean.vals.2 <- summarySE(data=output.differences, groupvars='ROI', measurevar='freq.minus.non')
-mean.vals.3 <- summarySE(data=output.differences, groupvars='ROI', measurevar='freq.minus.user')
-
-## And now find those regions that have a min 95% CI > .3
-mean.vals.1$flag <- 0
-mean.vals.1$flag[which(abs(mean.vals.1[,'user.minus.non']) - mean.vals.1[,'ci']>.3)] <- 1
-mean.vals.2$flag <- 0
-mean.vals.2$flag[which(abs(mean.vals.2[,'freq.minus.non']) - mean.vals.2[,'ci']>.3)] <- 1
-mean.vals.3$flag <- 0
-mean.vals.3$flag[which(abs(mean.vals.3[,'freq.minus.user']) - mean.vals.3[,'ci']>.3)] <- 1
-
-## Now grab some p values for our ROI's
-## the p value will be obtained by calculating the # of times
-## the absolute mean difference is greater than .3
-## This proportion will be our p value!
-output.differences$user.minus.non.bin <- 0
-output.differences$user.minus.non.bin[which(abs(output.differences$user.minus.non)>=.3)] <- 1
-output.differences$freq.minus.non.bin <- 0
-output.differences$freq.minus.non.bin[which(abs(output.differences$freq.minus.non)>=.3)] <- 1
-output.differences$freq.minus.user.bin <- 0
-output.differences$freq.minus.user.bin[which(abs(output.differences$freq.minus.user)>=.3)] <- 1
-
-## Now find the bootstrapped p value w/in each ROI
-bs.p.vals.out <- NULL
-for(r in mean.vals.1$ROI){
-  u.m.n <- 1 - dim(output.differences[which(output.differences$ROI==r & output.differences$user.minus.non.bin==1),])[1]/1000
-  f.m.n <- 1 - dim(output.differences[which(output.differences$ROI==r & output.differences$freq.minus.non.bin==1),])[1]/1000
-  f.m.u <- 1 - dim(output.differences[which(output.differences$ROI==r & output.differences$freq.minus.user.bin==1),])[1]/1000
-  out.row <- c(r, u.m.n, f.m.n, f.m.u)
-  bs.p.vals.out <- rbind(bs.p.vals.out, out.row)
+colnames(output.ci) <- c("ROI", "nvoMin", "nvoMax", "nvfMin", "nvfMax", "fvoMin", "fvoMax")
+## Now find our values that have confidence intervals that do not include 0
+## quickly declare a rough function for this
+is.between <- function(x, a, b) {
+    a <- as.numeric(as.character(a))
+    b <- as.numeric(as.character(b))
+    (x - a)  *  (b - x) > 0
 }
-rownames(bs.p.vals.out) <- NULL
-colnames(bs.p.vals.out) <- c('ROI', 'umnPVal', 'fmnPVal', 'fmuPVal')
-bs.p.vals.out <- as.data.frame(bs.p.vals.out)
-bs.p.vals.out[,2:4] <- apply(bs.p.vals.out[,2:4], 2, function(x) as.numeric(as.character(x)))
-mean.vals.1 <- merge(mean.vals.1, bs.p.vals.out[,c(1,2)])
-mean.vals.2 <- merge(mean.vals.2, bs.p.vals.out[,c(1,3)])
-mean.vals.3 <- merge(mean.vals.3, bs.p.vals.out[,c(1,4)])
-
-## Now write the output
-output <- merge(mean.vals.1, mean.vals.2, by='ROI')
-output <- merge(output, mean.vals.3, by='ROI')
+output.ci[which(!is.between(0, output.ci[,2], output.ci[,3])),]
+output.ci[which(!is.between(0, output.ci[,4], output.ci[,5])),]
+output.ci[which(!is.between(0, output.ci[,6], output.ci[,7])),]
 
 ## Now produce our histograms
 pdf('user.minus.non.pdf')
-for(r in mean.vals.1$ROI){
+for(q in c(358,359,360)){
   ## First grab all of our values
-  tmp.dat <- output.differences[which(output.differences$ROI==r),]
-  mean.value <- mean.vals.1[which(mean.vals.1$ROI==r),'user.minus.non']
-  ci.value <- mean.vals.1[which(mean.vals.1$ROI==r),'ci']
-  p.val.string <- paste("p-value = ", mean.vals.1[which(mean.vals.1$ROI==r),'umnPVal'], sep='')
+  v <- vars.of.interest[q]
+  name.val <- names(all.data)[v]
+  tmp.dat <- all.data[,c(name.val, 'marcat')]
+  non.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Non-User"),1]
+  occ.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Occ User"),1]
+  n.v.o <- two.boot(non.vals, occ.vals, mean, 1000, student=T, M=50)
+  ci.vals <- round(boot.ci(n.v.o)$student[4:5], digits=3)
+  ci.string <- paste("95% CI [", ci.vals[1], ",", ci.vals[2], "] ", sep='')
   ## Now plot our histogram for these values
-  out.plot <- ggplot(tmp.dat) +
-    geom_histogram(aes(user.minus.non), color='red', alpha=.3, bins=100) +
-    geom_vline(xintercept=mean.value) +
-    geom_vline(xintercept=mean.value+ci.value) +
-    geom_vline(xintercept=mean.value-ci.value) +
-    geom_vline(xintercept=-.3, linetype="dotted") +
-    geom_vline(xintercept=.3, linetype="dotted") +
+  out.plot <- ggplot() +
+    geom_histogram(aes(n.v.o$t[,1]-n.v.o$t[,2]), color='red', alpha=.3, bins=100) +
+    geom_segment(aes(x=ci.vals[1],xend=ci.vals[1], y=0, yend=40)) +
+    geom_segment(aes(x=ci.vals[2],xend=ci.vals[2],y=0, yend=40)) +
     ggtitle('') +
-    coord_cartesian(xlim=c(-.7, .7), ylim=c(0,50)) +
+    coord_cartesian(xlim=c(-.5, .5), ylim=c(0,50)) +
     theme_bw() +
-    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F, size=10) +
+    annotate("text",  x=Inf, y = Inf, label = ci.string, vjust=3.5, hjust=1, parse = F, size=8) +
     theme(text = element_text(size=30), axis.title.x = element_blank(), axis.title.y = element_blank())
   print(out.plot)
+  print(q)
 }
 dev.off()
 pdf('freq.minus.non.pdf')
-for(r in mean.vals.1$ROI){
-  ## First grab all of our values
-  tmp.dat <- output.differences[which(output.differences$ROI==r),]
-  mean.value <- mean.vals.2[which(mean.vals.1$ROI==r),'freq.minus.non']
-  ci.value <- mean.vals.2[which(mean.vals.1$ROI==r),'ci']
-  p.val.string <- paste("p-value = ", mean.vals.2[which(mean.vals.1$ROI==r),'fmnPVal'], sep='')
-  ## Now plot our histogram for these values
-  out.plot <- ggplot(tmp.dat) +
-    geom_histogram(aes(freq.minus.non), color='red', alpha=.3, bins=100) +
-    geom_vline(xintercept=mean.value) +
-    geom_vline(xintercept=mean.value+ci.value) +
-    geom_vline(xintercept=mean.value-ci.value) +
-    geom_vline(xintercept=-.3, linetype="dotted") +
-    geom_vline(xintercept=.3, linetype="dotted") +
+for(q in c(358,359,360)){
+    ## First grab all of our values
+    v <- vars.of.interest[q]
+    name.val <- names(all.data)[v]
+    tmp.dat <- all.data[,c(name.val, 'marcat')]
+    non.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Non-User"),1]
+    fre.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Freq User"),1]
+    n.v.f <- two.boot(non.vals, fre.vals, mean, 1000, student=T, M=50)
+    ci.vals <- round(boot.ci(n.v.o)$student[4:5], digits=3)
+    ci.string <- paste("95% CI [", ci.vals[1], ",", ci.vals[2], "] ", sep='')
+    ## Now plot our histogram for these values
+    out.plot <- ggplot() +
+    geom_histogram(aes(n.v.f$t[,1]-n.v.o$t[,2]), color='red', alpha=.3, bins=100) +
+    geom_segment(aes(x=ci.vals[1],xend=ci.vals[1], y=0, yend=40)) +
+    geom_segment(aes(x=ci.vals[2],xend=ci.vals[2],y=0, yend=40)) +
     ggtitle('') +
-    coord_cartesian(xlim=c(-.7, .7), ylim=c(0,50)) +
+    #xlab(name.val) +
+    coord_cartesian(xlim=c(-.5, .5), ylim=c(0,50)) +
     theme_bw() +
-    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F, size=10) +
+    annotate("text",  x=Inf, y = Inf, label = ci.string, vjust=3.5, hjust=1, parse = F, size=8) +
     theme(text = element_text(size=30), axis.title.x = element_blank(), axis.title.y = element_blank())
-  print(out.plot)
+    print(out.plot)
 }
 dev.off()
 pdf('freq.minus.user.pdf')
-for(r in mean.vals.1$ROI){
-  ## First grab all of our values
-  tmp.dat <- output.differences[which(output.differences$ROI==r),]
-  mean.value <- mean.vals.3[which(mean.vals.3$ROI==r),'freq.minus.user']
-  ci.value <- mean.vals.3[which(mean.vals.3$ROI==r),'ci']
-  p.val.string <- paste("p-value = ", mean.vals.3[which(mean.vals.3$ROI==r),'fmuPVal'], sep='')
-  ## Now plot our histogram for these values
-  out.plot <- ggplot(tmp.dat) +
-    geom_histogram(aes(freq.minus.user), color='red', alpha=.3, bins=100) +
-    geom_vline(xintercept=mean.value) +
-    geom_vline(xintercept=mean.value+ci.value) +
-    geom_vline(xintercept=mean.value-ci.value) +
-    geom_vline(xintercept=-.3, linetype="dotted") +
-    geom_vline(xintercept=.3, linetype="dotted") +
+for(q in c(358,359,360)){
+    ## First grab all of our values
+    v <- vars.of.interest[q]
+    name.val <- names(all.data)[v]
+    tmp.dat <- all.data[,c(name.val, 'marcat')]
+    occ.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Occ User"),1]
+    fre.vals <- tmp.dat[which(tmp.dat[,2]=="MJ Freq User"),1]
+    f.v.o <- two.boot(fre.vals, occ.vals, mean, 1000, student=T, M=50)
+    ci.vals <- round(boot.ci(n.v.o)$student[4:5], digits=3)
+    ci.string <- paste("95% CI [", ci.vals[1], ",", ci.vals[2], "] ", sep='')
+    ## Now plot our histogram for these values
+    out.plot <- ggplot() +
+    geom_histogram(aes(f.v.o$t[,1]-n.v.o$t[,2]), color='red', alpha=.3, bins=100) +
+    geom_segment(aes(x=ci.vals[1],xend=ci.vals[1], y=0, yend=40)) +
+    geom_segment(aes(x=ci.vals[2],xend=ci.vals[2],y=0, yend=40)) +
     ggtitle('') +
-    coord_cartesian(xlim=c(-.7, .7), ylim=c(0,50)) +
+    coord_cartesian(xlim=c(-.5, .5), ylim=c(0,50)) +
     theme_bw() +
-    annotate("text",  x=Inf, y = Inf, label = p.val.string, vjust=1.5, hjust=1, parse = F, size=10) +
+    annotate("text",  x=Inf, y = Inf, label = ci.string, vjust=3.5, hjust=1, parse = F, size=8) +
     theme(text = element_text(size=30), axis.title.x = element_blank(), axis.title.y = element_blank())
-  print(out.plot)
+    print(out.plot)
 }
 dev.off()
 

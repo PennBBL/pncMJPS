@@ -38,11 +38,11 @@ writeDensityPlot <- function(data=all.data, var.of.interest=NULL, covariates="s(
       
     ## Now create our text strings to add to the density plot
     if(!identical(paraMetricValue, NULL)){
-      f.string <- paste("F-statistic = ",round(as.numeric(paraMetricValue), digits=3))
+      f.string <- paste("F-statistic = ",round(as.numeric(paraMetricValue), digits=3), " ")
       out.hist <- out.hist + annotate("text",  x=Inf, y = Inf, label = f.string, vjust=1.5, hjust=1, parse = F, size=10)
     }
     if(!identical(nonParametricValue, NULL)){
-      chi.string <- paste("Kruskal-Wallis H = ",round(as.numeric(nonParametricValue), digits=3))
+      chi.string <- paste("Kruskal-Wallis H = ",round(as.numeric(nonParametricValue), digits=3), " ")
       out.hist <- out.hist + annotate("text",  x=Inf, y = Inf, label = chi.string, vjust=3.5, hjust=1, parse=F, size=10)
     }
     # Now return the object
