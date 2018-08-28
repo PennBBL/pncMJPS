@@ -91,6 +91,8 @@ for(i in 1:dim(output.values.nl)[1]){
     tmp.string <- gsub(x=tmp.string, pattern="R_", replacement="Right ")
     tmp.string <- gsub(x=tmp.string, pattern="_", replacement=" ")
     if(i ==1){tmp.string <- "Mean Cortical Thickness"}
+    if(i ==4){tmp.string <- "Right Insular Cortex"}
+    if(i ==5){tmp.string <- "Left Insular Cortex"}
     # Now remove the "density fdrom the graph"
     tmp.plot <- tmp.plot + theme(axis.title.y = element_text(color="white")) + xlab(tmp.string)
     print(tmp.plot)

@@ -110,6 +110,17 @@ for(n in roiNames){
   outRow <- c(n,krusk.val$statistic, krusk.val$p.value, test1$statistic,test1$p.value,test2$statistic,test2$p.value,test3$statistic,test3$p.value, fdrValues, occ.vs.non.d, non.vs.freq.d, freq.vs.occ.d)
   
   groupDiffMatrix[index,] <- outRow
+  # Now plot if we have a nominally sig value F stat
+  if(outputVals[index,3]<.05){
+      tmpPlot <- ggplot(foo, aes(x=marcat, y=tmpVals)) +
+      geom_bar(stat="identity", position=position_dodge(), size=.1) +
+      geom_errorbar(aes(ymin=tmpVals-se, ymax=tmpVals+se),
+      width = .2, position=position_dodge(.9)) +
+      #geom_jitter(data=tmpData, aes(x=marcat, y=tmpVals),alpha=.1, position=position_jitter(0.2)) +
+      ylab(n)
+      print(tmpPlot)
+  }
+  
   index <- index+1
 }
 dev.off()
@@ -125,7 +136,7 @@ pValFDR[54:192] <- p.adjust(as.numeric(groupDiffMatrix[54:192,7]), method='fdr')
 pValFDR[193:290] <- p.adjust(as.numeric(groupDiffMatrix[193:290,7]), method='fdr')
 pValFDR[291:408] <- p.adjust(as.numeric(groupDiffMatrix[291:408,7]), method='fdr')
 pValFDR[409:506] <- p.adjust(as.numeric(groupDiffMatrix[409:506,7]), method='fdr')
-pValFDR[507:575] <- p.adjust(as.numeric(groupDiffMatrix[507:575,7]), method='fdr')
+pValFDR[507:575] <- p.adjust(as.numeric(outputVals[507:575,7]), method='fdr')
 pValFDRNonVsFrequentT <- pValFDR
 groupDiffMatrix <- cbind(groupDiffMatrix, pValFDRNonVsFrequentT)
 groupDiffFull <- cbind(outputVals, groupDiffMatrix)
@@ -141,7 +152,7 @@ pValFDR[54:192] <- p.adjust(as.numeric(groupDiffMatrix[54:192,3]), method='fdr')
 pValFDR[193:290] <- p.adjust(as.numeric(groupDiffMatrix[193:290,3]), method='fdr')
 pValFDR[291:408] <- p.adjust(as.numeric(groupDiffMatrix[291:408,3]), method='fdr')
 pValFDR[409:506] <- p.adjust(as.numeric(groupDiffMatrix[409:506,3]), method='fdr')
-pValFDR[507:575] <- p.adjust(as.numeric(groupDiffMatrix[507:575,3]), method='fdr')
+pValFDR[507:575] <- p.adjust(as.numeric(outputVals[507:575,3]), method='fdr')
 groupDiffMatrix <- cbind(groupDiffMatrix, pValFDR)
 
 ## Now write out all of these values
