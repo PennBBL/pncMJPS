@@ -1,11 +1,11 @@
 # AFGR April 2018
-# This script is gfoing to be used to assess variance across our three marcat labels.
+# This script is going to be used to assess variance across our three marcat labels.
 # It is going to go from a very coarse, whole brain, lobular, and then specific JLF labels.
 # I am going to run an anova for our marcat factor for each of these metrics.
 
 ## Load library(s)
 #source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('psych', 'pwr', 'ggplot2', 'caret', 'mgcv')
+install_load('psych', 'pwr', 'ggplot2', 'caret', 'mgcv', 'reshpae', 'lmerTest')
 
 ## Load data
 all.data <- readRDS('mjAnovaData.RDS')
@@ -45,8 +45,20 @@ for(s in summaryMetrics){
   outputVals <- rbind(outputVals, tmpRow)
 }
 
+## Now run a MEM for these differences
+staticVars <- c("bblid", "ageAtScan1", "sex", "marcat", "averageManualRating", "race2", "overall_psychopathology_ar_4factor")
+allVals <- c(staticVars, summaryMetrics[147:237]) # ct
+allVals <- c(staticVars, summaryMetrics[1:139]) # vol
+allVals <- c(staticVars, summaryMetrics[238:355]) # gmd
+allVals <- c(staticVars, summaryMetrics[356:453]) # cortcon
+allVals <- c(staticVars, names(all.data)[c(1870:1939)]) # FS CT
+tmpData <- all.data[,allVals]
+tmpData <- melt(tmpData, id.vars=staticVars)
+# Now model our MEM
+mod <- lmer(value ~ ageAtScan1 + sex + marcat + averageManualRating + factor(race2) + overall_psychopathology_ar_4factor + variable + (1|bblid), data = tmpData)
+
 # Now do FS values down here
-summaryMetrics <- names(all.data)[c(1859:1926,1932)]
+summaryMetrics <- names(all.data)[c(1870:1940)]
 for(s in summaryMetrics){
     # build a lm in all of the data
     tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
@@ -55,6 +67,18 @@ for(s in summaryMetrics){
     tmpRow <- c(s, tmpVals)
     outputVals <- rbind(outputVals, tmpRow)
 }
+
+# Now do NMF networks
+summaryMetrics <- names(all.data)[c(2007:2050)]
+for(s in summaryMetrics){
+    # build a lm in all of the data
+    tmpMod <- gam(all.data[,s] ~ s(ageAtScan1) + sex + averageManualRating + marcat + factor(race2) + overall_psychopathology_ar_4factor, data=all.data)
+    aovMod <- anova.gam(tmpMod)
+    tmpVals <- aovMod$pTerms.table['marcat',c('F', 'p-value')]
+    tmpRow <- c(s, tmpVals)
+    outputVals <- rbind(outputVals, tmpRow)
+}
+
 
 # Now add in our multiple comparisions and what not
 pValFDR <- rep(NA, dim(outputVals)[1])
