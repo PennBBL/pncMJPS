@@ -1,6 +1,6 @@
 ## Load library(s)
 source('/home/arosen/adroseHelperScripts/R/afgrHelpFunc.R')
-install_load('MASS')
+install_load('MASS','MatchIt')
 ## Load data
 mjData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/n9462_mj_ps_cnb_fortmm.csv')
 mjData <- read.csv('/data/jux/BBL/projects/pncMJPS/data/n9498_go1_foradon_061518.csv')
@@ -139,3 +139,27 @@ t.val.oc.vs.non <- t.test(psychosis_ar_4factor ~ marcat, data=all.data[-which(al
 t.val.oc.vs.freq <- t.test(psychosis_ar_4factor ~ marcat, data=all.data[-which(all.data$marcat=="MJ Non-User"),])
 t.val.non.vs.freq <- t.test(psychosis_ar_4factor ~ marcat, data=all.data[-which(all.data$marcat=="MJ Occ User"),])
 aov.val <- aov(psychosis_ar_4factor ~ marcat, data=all.data)
+
+
+## Now return an age, and sex matched sample
+all.data$usageBin <- 0
+all.data$usageBin[all.data$dosage>0] <- 1
+tmpDat <- all.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'sex')]
+mod <- matchit(usageBin ~ ageAtScan1 + sex, data=tmpDat, ratio=1, na.action=na.omit)
+all.data.out <- all.data[as.vector(mod$match.matrix),]
+all.data.out <- rbind(all.data.out, all.data[which(all.data$usageBin==1),])
+saveRDS(object=all.data.out, file="mjAnovaDataMatch1.RDS")
+all.data$usageBin <- 0
+all.data$usageBin[all.data$dosage>0] <- 1
+tmpDat <- all.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'sex')]
+mod <- matchit(usageBin ~ ageAtScan1 + sex, data=tmpDat, ratio=2, na.action=na.omit)
+all.data.out <- all.data[as.vector(mod$match.matrix),]
+all.data.out <- rbind(all.data.out, all.data[which(all.data$usageBin==1),])
+saveRDS(object=all.data.out, file="mjAnovaDataMatch2.RDS")
+all.data$usageBin <- 0
+all.data$usageBin[all.data$dosage>0] <- 1
+tmpDat <- all.data[c('bblid', 'scanid', 'usageBin', 'ageAtScan1', 'sex')]
+mod <- matchit(usageBin ~ ageAtScan1 + sex, data=tmpDat, ratio=3, na.action=na.omit)
+all.data.out <- all.data[as.vector(mod$match.matrix),]
+all.data.out <- rbind(all.data.out, all.data[which(all.data$usageBin==1),])
+saveRDS(object=all.data.out, file="mjAnovaDataMatch3.RDS")
