@@ -1,6 +1,6 @@
 ## Load library(s)
 install_load('readstata13','ggplot2','lme4','lmerTest','reshape','psych','visreg')
-
+source('../functions/functions.R')
 ## Load the data
 data <- read.dta13('./cannabis_psychosis_cnb_foradon.dta')
 ## Now load the imaging data
@@ -79,12 +79,28 @@ xVol[,10:18] <- scale(xVol[,10:18])
 xVol <- melt(xVol, id.vars=char.vec)
 mod.vol3 <- nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
 
+## Now do all of the individual volume HiLo lobes
+for(lobeVal in c(1:9)){
+    colVals <- names(img.data)[349:487]
+    dim(colVals) <- c(139,1)
+    tmp <- colVals[which(apply(colVals, 1, findLobe)==lobeVal),]
+    xVol <- img.data[,c(char.vec, tmp)]
+    xVol[,10:dim(xVol)[2]] <- scale(xVol[,10:dim(xVol)[2]])
+    if(lobeVal!=8){
+        xVol <- averageLeftAndRightVol(xVol)
+    }
+    xVol <- melt(xVol, id.vars=char.vec)
+    mod.vol.roi <-nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
+    assign(paste0("mod.vol.roi_",lobeVal),mod.vol.roi)
+}
+
 ## Now onto gmd
 tmp <- names(img.data)[c(grep("mprage_jlfHiLoLobe_gmd", names(img.data)))]
 xGmd <- img.data[,c(char.vec, tmp)]
 xGmd[,10:17] <- scale(xGmd[,10:17])
 xGmd <- melt(xGmd, id.vars=char.vec)
 mod.gmd3 <- nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xGmd,na.action=na.exclude)
+
 
 ## Now check the DTI lobes
 tmp <- names(img.data)[c(grep("dti_jlfHiLoLobe_tr", names(img.data)))][-9]
@@ -93,6 +109,20 @@ xTr[,10:17] <- scale(xTr[,10:17])
 xTr <- melt(xTr, id.vars=char.vec)
 mod.tr3 <- nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xTr,na.action=na.exclude)
 
+for(lobeVal in c(1:9)){
+    colVals <- names(img.data)[956:1085]
+    dim(colVals) <- c(130,1)
+    tmp <- colVals[which(apply(colVals, 1, findLobe)==lobeVal),]
+    xVol <- img.data[,c(char.vec, tmp)]
+    xVol[,10:dim(xVol)[2]] <- scale(xVol[,10:dim(xVol)[2]])
+    if(lobeVal!=8){
+        #xVol <- averageLeftAndRightVol(xVol)
+    }
+    xVol <- melt(xVol, id.vars=char.vec)
+    mod.tr.roi <-nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
+    assign(paste0("mod.tr.roi_",lobeVal),mod.tr.roi)
+}
+
 ## Now do FA
 tmp <- names(img.data)[c(grep("dti_dtitk_jhutract_fa", names(img.data)))]
 xFA <- img.data[,c(char.vec, tmp)]
@@ -100,3 +130,81 @@ xFA <- img.data[,c(char.vec, tmp)]
 xFA[,10:27] <- scale(xFA[,10:27])
 xFA <- melt(xFA, id.vars=char.vec)
 mod.fa3 <- nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xFA,na.action=na.exclude)
+
+## Looks like we have some significant ROI level psy*MJ interactions
+## Now we are going to have to plot these effects
+## So let the plotting begin down here
+
+
+## Lets begin here with the volume lobes
+out.data.one <- NULL
+for(i in names(img.data)[c(grep("mprage_jlfHiLoLobe_vol", names(img.data)))]){
+    img.data.tmp <- img.data
+    img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths")), data=img.data.tmp, na.action=na.exclude))
+    img.data.tmp[,i] <- scale(img.data.tmp[,i])
+    tmp.dat <- summarySE(groupvars=c('maruse','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
+    colnames(tmp.dat)[4] <- c('mean')
+    tmp.dat$lobe <- i
+    out.data.one <- rbind(out.data.one, tmp.dat)
+}
+out.data.one$maruse <- factor(out.data.one$maruse, levels=c('nonuser','user','frequser'))
+out.plot.one <- ggplot(out.data.one, aes(x=lobe, y=mean, group=maruse, color=maruse)) +
+geom_point(position=position_dodge(.3)) +
+geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
+facet_grid(psBinary~maruse) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+coord_cartesian(ylim=c(-.7,.6))
+
+## Now do mj binary
+out.data.one <- NULL
+for(i in names(img.data)[c(grep("mprage_jlfHiLoLobe_vol", names(img.data)))]){
+    img.data.tmp <- img.data
+    img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths")), data=img.data.tmp, na.action=na.exclude))
+    img.data.tmp[,i] <- scale(img.data.tmp[,i])
+    tmp.dat <- summarySE(groupvars=c('mjbinary','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
+    colnames(tmp.dat)[4] <- c('mean')
+    tmp.dat$lobe <- i
+    out.data.one <- rbind(out.data.one, tmp.dat)
+}
+out.plot.one <- ggplot(out.data.one, aes(x=lobe, y=mean, group=mjbinary, color=mjbinary)) +
+geom_point(position=position_dodge(.3)) +
+geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
+facet_grid(psBinary~mjbinary) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+coord_cartesian(ylim=c(-.7,.6))
+
+## Now do TR
+out.data.one <- NULL
+for(i in names(img.data)[c(grep("dti_jlfHiLoLobe_tr", names(img.data)))]){
+    img.data.tmp <- img.data
+    img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths")), data=img.data.tmp, na.action=na.exclude))
+    img.data.tmp[,i] <- scale(img.data.tmp[,i])
+    tmp.dat <- summarySE(groupvars=c('maruse','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
+    colnames(tmp.dat)[4] <- c('mean')
+    tmp.dat$lobe <- i
+    out.data.one <- rbind(out.data.one, tmp.dat)
+}
+out.data.one$maruse <- factor(out.data.one$maruse, levels=c('nonuser','user','frequser'))
+out.plot.two <- ggplot(out.data.one, aes(x=lobe, y=mean, group=maruse, color=maruse)) +
+geom_point(position=position_dodge(.3)) +
+geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
+facet_grid(psBinary~maruse) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+coord_cartesian(ylim=c(-.7,.6))
+
+out.data.one <- NULL
+for(i in names(img.data)[c(grep("dti_jlfHiLoLobe_tr", names(img.data)))]){
+    img.data.tmp <- img.data
+    img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths")), data=img.data.tmp, na.action=na.exclude))
+    img.data.tmp[,i] <- scale(img.data.tmp[,i])
+    tmp.dat <- summarySE(groupvars=c('mjbinary','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
+    colnames(tmp.dat)[4] <- c('mean')
+    tmp.dat$lobe <- i
+    out.data.one <- rbind(out.data.one, tmp.dat)
+}
+out.plot.one <- ggplot(out.data.one, aes(x=lobe, y=mean, group=mjbinary, color=mjbinary)) +
+geom_point(position=position_dodge(.3)) +
+geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
+facet_grid(psBinary~mjbinary) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+coord_cartesian(ylim=c(-.7,.6))
