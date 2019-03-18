@@ -33,6 +33,25 @@ mod.cog <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psBinary*variabl
 mod.cog2 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
 
+## Now plot it
+## Now do continous plots here
+out.data.one <- NULL
+data.tmp <- data
+for(i in names(data)[c(65,66,67)]){
+    data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + ageatcnb1 + envses")), data=data.tmp, na.action=na.exclude))
+    data.tmp[,i] <- scale(data.tmp[,i])
+}
+tmp.data <- data.tmp[,c(char.vec,cog.names)]
+xVol <- melt(tmp.data, id.vars=char.vec)
+xVol <- xVol[-which(is.na(xVol$marcat)),]
+out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
+geom_point() +
+facet_grid(.~variable) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+geom_smooth(method='lm')
+pdf('marcatByPsychFactorInteractionCog.pdf', width=30, height=10)
+out.plot.one
+dev.off()
 
 ## Now do speed
 cog.names <- names(data)[c(68,69,70)]
@@ -61,7 +80,7 @@ img.data <- merge(data, img.data, by='bblid',suffixes = c("",".y"))
 img.data <- img.data[-which(is.na(img.data$marcat)),]
 ## Now run the imaging analyses
 char.vec <- c("bblid","envses","sex","race2","scanageMonths","psBinary","mjbinary","psychosis_ar_4factor","marcat")
-global.val <- c("mprage_jlf_vol_TBV","mprage_jlf_gmd_MeanGMD","dti_jlf_tr_MeanWholeBrainTR")
+global.val <- c("mprage_jlf_vol_TBWM","mprage_jlf_gmd_MeanGMD","dti_jlf_tr_MeanWholeBrainTR")
 x <- img.data[,c(char.vec,global.val)]
 ## Now scale the values w/in modality
 x[,10:dim(x)[2]] <- scale(x[,10:dim(x)[2]])
@@ -77,6 +96,7 @@ tmp <- names(img.data)[c(grep("mprage_jlfHiLoLobe_vol", names(img.data)))]
 xVol <- img.data[,c(char.vec, tmp)]
 xVol[,10:18] <- scale(xVol[,10:18])
 xVol <- melt(xVol, id.vars=char.vec)
+xVol <- xVol[complete.cases(xVol),]
 mod.vol3 <- nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
 
 ## Now do all of the individual volume HiLo lobes
@@ -108,7 +128,6 @@ xTr <- img.data[,c(char.vec, tmp)]
 xTr[,10:17] <- scale(xTr[,10:17])
 xTr <- melt(xTr, id.vars=char.vec)
 mod.tr3 <- nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xTr,na.action=na.exclude)
-
 for(lobeVal in c(1:9)){
     colVals <- names(img.data)[956:1085]
     dim(colVals) <- c(130,1)
@@ -121,6 +140,10 @@ for(lobeVal in c(1:9)){
     xVol <- melt(xVol, id.vars=char.vec)
     mod.tr.roi <-nlme::lme(value~scanageMonths+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
     assign(paste0("mod.tr.roi_",lobeVal),mod.tr.roi)
+    ## Now write the anove values
+    outputFileName <- paste("anovaTRLobeValue", lobeVal, ".csv", sep='')
+    to.write <- anova(mod.tr.roi)
+    write.csv(to.write, outputFileName, quote=F)
 }
 
 ## Now do FA
@@ -155,6 +178,22 @@ facet_grid(psBinary~maruse) +
 theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
 coord_cartesian(ylim=c(-.7,.6))
 
+## Now do continous plots here
+out.data.one <- NULL
+img.data.tmp <- img.data
+for(i in names(img.data)[c(grep("mprage_jlfHiLoLobe_vol", names(img.data)))]){
+    img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths")), data=img.data.tmp, na.action=na.exclude))
+    img.data.tmp[,i] <- scale(img.data.tmp[,i])
+}
+tmp.data <- img.data.tmp[,c(char.vec, names(img.data)[c(grep("mprage_jlfHiLoLobe_vol", names(img.data)))])]
+xVol <- melt(tmp.data, id.vars=char.vec)
+out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
+geom_point() +
+facet_grid(.~variable) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+coord_cartesian(ylim=c(-.7,.6)) +
+geom_smooth(method='lm')
+
 ## Now do mj binary
 out.data.one <- NULL
 for(i in names(img.data)[c(grep("mprage_jlfHiLoLobe_vol", names(img.data)))]){
@@ -172,6 +211,15 @@ geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
 facet_grid(psBinary~mjbinary) +
 theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
 coord_cartesian(ylim=c(-.7,.6))
+
+## Now do TBV
+i <- 'mprage_jlf_vol_TBV'
+img.data.tmp <- img.data
+img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths")), data=img.data.tmp, na.action=na.exclude))
+img.data.tmp[,i] <- scale(img.data.tmp[,i])
+out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=mprage_jlf_vol_TBV, group=marcat, color=factor(marcat))) +
+geom_point(position=position_dodge(.3)) +
+geom_smooth(method='lm')
 
 ## Now do TR
 out.data.one <- NULL
@@ -208,3 +256,30 @@ geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
 facet_grid(psBinary~mjbinary) +
 theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
 coord_cartesian(ylim=c(-.7,.6))
+
+i <- 'dti_jlf_tr_MeanWholeBrainTR'
+img.data.tmp <- img.data
+img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths + dti64Tsnr + envses")), data=img.data.tmp, na.action=na.exclude))
+img.data.tmp[,i] <- scale(img.data.tmp[,i])
+out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=dti_jlf_tr_MeanWholeBrainTR, group=marcat, color=factor(marcat))) +
+geom_point(position=position_dodge(.3)) +
+geom_smooth(method='lm')
+
+## Now do continous plots here
+out.data.one <- NULL
+img.data.tmp <- img.data
+for(i in names(img.data)[c(grep("dti_jlfHiLoLobe_tr", names(img.data)))]){
+    img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + scanageMonths")), data=img.data.tmp, na.action=na.exclude))
+    img.data.tmp[,i] <- scale(img.data.tmp[,i])
+}
+tmp.data <- img.data.tmp[,c(char.vec, names(img.data)[c(grep("dti_jlfHiLoLobe_tr", names(img.data)))])]
+xVol <- melt(tmp.data, id.vars=char.vec)
+out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
+geom_point() +
+facet_grid(.~variable) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+coord_cartesian(ylim=c(-.7,.6)) +
+geom_smooth(method='lm')
+pdf('lobularMarcatVsPsych.pdf', width=30, height=10)
+out.plot.one
+dev.off()
