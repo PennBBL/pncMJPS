@@ -18,7 +18,7 @@ data <-readRDS("../../01_dataPrep/scripts/mjPSCogImg.RDS")
 
 ## Now melt the data frame, so it is ready for a MEM
 char.vec <- c("bblid","envses","sex","race2","ageatcnb1","psBinary","mjbinary","psychosis_ar_4factor","marcat")
-cog.names <- c("f1_social_cognition_efficiency","f2_complex_reasoning_efficiency","f3_memory_efficiency","f4_executive_efficiency")
+cog.names <- c("f1_social_cognition_efficiency","f2_complex_reasoning_efficiency","f3_memory_efficiency","f4_executive_efficiency","overall_efficiency")
 x <- data[,c(char.vec,cog.names)]
 xCog <- melt(x, id.vars=char.vec)
 xCog$marcat <- factor(xCog$marcat)
@@ -28,14 +28,14 @@ mod.cog2 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psychosis_ar_4f
 mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
 
 ## Now do the fine for accuracy
-cog.names <- c("f1_exec_comp_cog_accuracy","f2_social_cog_accuracy","f3_memory_accuracy")
+cog.names <- c("f1_exec_comp_cog_accuracy","f2_social_cog_accuracy","f3_memory_accuracy","overall_accuracy")
 x <- data[,c(char.vec,cog.names)]
 xCog <- melt(x, id.vars=char.vec)
 xCog$marcat <- factor(xCog$marcat)
 ## Now run the model
 mod.cog <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psBinary*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog2 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
-mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor+variable)^3+(1|bblid),data=xCog,na.action=na.exclude)
+mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+factor(race2)+(marcat+psychosis_ar_4factor+variable)^3+(1|bblid),data=xCog,na.action=na.exclude)
 ## Now plot it
 ## Now do continous plots here
 out.data.one <- NULL
@@ -59,6 +59,10 @@ dev.off()
 
 ## It looks like this effect is being driven by F1 exec comp cog
 ## so I will focus in on that effect
+anova(lm(overall_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(f1_exec_comp_cog_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(f2_social_cog_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(f3_memory_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
 data.tmp <- data
 data.tmp$None <- residuals(lm(as.formula(paste("f1_exec_comp_cog_accuracy"," ~ sex + ageatcnb1")), data=data.tmp, na.action=na.exclude))
 data.tmp$onlySES <- residuals(lm(as.formula(paste("f1_exec_comp_cog_accuracy"," ~ sex + ageatcnb1+envses")), data=data.tmp, na.action=na.exclude))
@@ -130,10 +134,9 @@ xVol[,10:18] <- scale(xVol[,10:18])
 xVol <- melt(xVol, id.vars=char.vec)
 xVol <- xVol[complete.cases(xVol),]
 mod.vol3 <- nlme::lme(value~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
-
 ## Now do all of the individual volume HiLo lobes
 pdf('regionEffects.pdf', width=60, height=12)
-for(lobeVal in c(1:9)){
+for(lobeVal in c(1:3,5:9)){
     colVals <- names(img.data)[357:495]
     dim(colVals) <- c(139,1)
     tmp <- colVals[which(apply(colVals, 1, findLobe)==lobeVal),]
@@ -158,12 +161,17 @@ for(lobeVal in c(1:9)){
         dim(colVals) <- c(139,1)
         tmp <- colVals[which(apply(colVals, 1, findLobe)==lobeVal),]
         xVol <- img.data[,c(char.vec, tmp)]
-        xVol[,10:dim(xVol)[2]] <- scale(xVol[,10:dim(xVol)[2]])
-        if(lobeVal!=8){
-            #xVol <- averageLeftAndRightVol(xVol)
-        }
+        ## Now find FWE w/in lobe sig regions
+        tmp <- names(which(p.adjust(apply(xVol[,10:dim(xVol)[2]],2,function(x) anova(lm(x~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor,data=xVol,na.action=na.exclude))['marcat:psychosis_ar_4factor','Pr(>F)']), method='fdr')<.05))
+        xVol <- img.data[,c(char.vec, tmp)]
         ## Now remove age effects
-        xVol[,10:dim(xVol)[2]] <- apply(xVol[,10:dim(xVol)[2]],2,function(x) residuals(lm(x~ageAtScan1+sex,data=xVol,na.action=na.exclude)))
+        if(length(tmp)==0){break}
+        if(length(tmp)==1){xVol[,10] <- residuals(lm(xVol[,10]~ageAtScan1+sex,data=xVol,na.action=na.exclude))
+             xVol[,10] <- scale(xVol[,10])
+        }
+        if(length(tmp)!=1){xVol[,10:dim(xVol)[2]] <- apply(xVol[,10:dim(xVol)[2]],2,function(x) residuals(lm(x~ageAtScan1+sex,data=xVol,na.action=na.exclude)))
+            xVol[,10:dim(xVol)[2]] <- scale(xVol[,10:dim(xVol)[2]])
+        }
         xVol <- melt(xVol, id.vars=char.vec)
         xVol$marcat <- factor(xVol$marcat,levels=c('NU','OU','FU'))
         xVol <- xVol[-which(is.na(xVol$marcat)),]
@@ -190,7 +198,7 @@ xTr[,10:17] <- scale(xTr[,10:17])
 xTr <- melt(xTr, id.vars=char.vec)
 mod.tr3 <- nlme::lme(value~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xTr,na.action=na.exclude)
 pdf('regionEffectsTR.pdf', width=60, height=12)
-for(lobeVal in c(1:9)){
+for(lobeVal in c(1,3:4,6:9)){
     colVals <- names(img.data)[965:1095]
     dim(colVals) <- c(131,1)
     tmp <- colVals[which(apply(colVals, 1, findLobe)==lobeVal),]
@@ -210,25 +218,30 @@ for(lobeVal in c(1:9)){
     ## Now if we have a significnat marcat interaction lets plot the ROI's
     ## FInd the minimum p value between our variables of interest
     min.p.val <- min(anova(mod.tr.roi)[c('marcat:psychosis_ar_4factor','marcat:psychosis_ar_4factor:variable'),'p-value'])
-    if(min.p.val<.005){
+    if(min.p.val<.05){
         write.csv(to.write, outputFileName, quote=F)
         ## Now plot these ROI's after removing
         dim(colVals) <- c(131,1)
         tmp <- colVals[which(apply(colVals, 1, findLobe)==lobeVal),]
         xVol <- img.data[,c(char.vec, tmp)]
-        xVol[,10:dim(xVol)[2]] <- scale(xVol[,10:dim(xVol)[2]])
-        if(lobeVal!=8){
-            #xVol <- averageLeftAndRightVol(xVol)
-        }
+        ## Now find FWE w/in lobe sig regions
+        tmp <- names(which(p.adjust(apply(xVol[,10:dim(xVol)[2]],2,function(x) anova(lm(x~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor,data=xVol,na.action=na.exclude))['marcat:psychosis_ar_4factor','Pr(>F)']), method='fdr')<.05))
+        xVol <- img.data[,c(char.vec, tmp)]
         ## Now remove age effects
-        xVol[,10:dim(xVol)[2]] <- apply(xVol[,10:dim(xVol)[2]],2,function(x) residuals(lm(x~ageAtScan1+sex,data=xVol,na.action=na.exclude)))
+        if(length(tmp)==0){break}
+        if(length(tmp)==1){xVol[,10] <- residuals(lm(xVol[,10]~ageAtScan1+sex,data=xVol,na.action=na.exclude))
+            xVol[,10] <- scale(xVol[,10])
+        }
+        if(length(tmp)!=1){xVol[,10:dim(xVol)[2]] <- apply(xVol[,10:dim(xVol)[2]],2,function(x) residuals(lm(x~ageAtScan1+sex,data=xVol,na.action=na.exclude)))
+            xVol[,10:dim(xVol)[2]] <- scale(xVol[,10:dim(xVol)[2]])
+        }
         xVol <- melt(xVol, id.vars=char.vec)
         xVol$marcat <- factor(xVol$marcat,levels=c('NU','OU','FU'))
         xVol <- xVol[-which(is.na(xVol$marcat)),]
         out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
         #geom_point() +
         facet_grid(.~variable) +
-        #theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         geom_smooth(method='lm')
         print(out.plot.one)
     }
