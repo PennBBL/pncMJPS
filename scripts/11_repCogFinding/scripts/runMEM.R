@@ -16,6 +16,12 @@ data <- data[-which(data$mjpastyr==1),]
 ## Now load the RDS file as our data
 data <-readRDS("../../01_dataPrep/scripts/mjPSCogImg.RDS")
 
+## Now attach the wrat
+wrat.scores <- read.csv('./n9498_cnb_wrat_scores_20161215.csv')
+data <- merge(data, wrat.scores)
+psy.fac <- read.csv('./GO1_Psychosis_Factor_Scores.csv')
+data <- merge(data, psy.fac)
+
 ## Now melt the data frame, so it is ready for a MEM
 char.vec <- c("bblid","envses","sex","race2","ageatcnb1","psBinary","mjbinary","psychosis_ar_4factor","marcat")
 cog.names <- c("f1_social_cognition_efficiency","f2_complex_reasoning_efficiency","f3_memory_efficiency","f4_executive_efficiency","overall_efficiency")
@@ -51,10 +57,47 @@ out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, 
 #geom_point() +
 facet_grid(.~variable) +
 theme(axis.text.x = element_text(angle = 0, hjust = 1)) +
-geom_smooth(method='lm') +
+geom_smooth(method='lm')
+
+## Now compare the upper tertile psych factor score on the sub domain factor score
+data[,2170:2174]<-apply(data[,2170:2174], 2, function(x) scale(residuals(lm(x ~ ageatcnb1+sex+envses, data=data, na.action=na.exclude))))
+#Upper here
+tmp.dat <- data[which(data$psychosis_ar_4factor>quantile(data$psychosis_ar_4factor, c(.65), na.rm=T)),]
+# Middle here
+#tmp.dat <- data[which(data$psychosis_ar_4factor<quantile(data$psychosis_ar_4factor, c(.65), na.rm=T) & data$psychosis_ar_4factor>quantile(data$psychosis_ar_4factor, c(.33), na.rm=T)),]
+#Lowest here
+#tmp.dat <- data[which(data$psychosis_ar_4factor<quantile(data$psychosis_ar_4factor, c(.33), na.rm=T)),]
+#tmp.dat[,2170:2174] <- apply(tmp.dat[,2170:2174], 2, function(x) scale(residuals(lm(x ~ ageatcnb1+sex+envses, data=tmp.dat, na.action=na.exclude))))
+anova(lm(F1_Positive_3Fac ~ marcat + ageatcnb1 + sex + factor(race2) + envses, data=tmp.dat))
+plotVal <- summarySE(data=tmp.dat, measurevar='F1_Positive_3Fac', groupvars='marcat', na.rm=T)[-4,]
+outPlot1 <- ggplot(plotVal,aes(x=factor(marcat), y=as.numeric(as.character(F1_Positive_3Fac)))) +
+geom_bar(stat='identity', position=position_dodge(), size=.1) +
+labs(title='F1_Positive_3Fac', x='Marcat', y='Mean Value') +
+theme_bw() +
+geom_errorbar(aes(ymin=F1_Positive_3Fac-se, ymax=F1_Positive_3Fac+se),width = .1, position=position_dodge(.9))
+anova(lm(F2_Positive_Delusional_3Fac ~ marcat + ageatcnb1 + sex + factor(race2) + envses, data=tmp.dat))
+plotVal <- summarySE(data=tmp.dat, measurevar='F2_Positive_Delusional_3Fac', groupvars='marcat', na.rm=T)[-4,]
+outPlot2 <- ggplot(plotVal,aes(x=factor(marcat), y=as.numeric(as.character(F2_Positive_Delusional_3Fac)))) +
+geom_bar(stat='identity', position=position_dodge(), size=.1) +
+labs(title='F2_Positive_Delusional_3Fac', x='Marcat', y='Mean Value') +
+theme_bw() +
+geom_errorbar(aes(ymin=F2_Positive_Delusional_3Fac-se, ymax=F2_Positive_Delusional_3Fac+se),width = .1, position=position_dodge(.9))
+anova(lm(F3_Negative_3Fac ~ marcat + ageatcnb1 + sex + factor(race2) + envses, data=tmp.dat))
+plotVal <- summarySE(data=tmp.dat, measurevar='F3_Negative_3Fac', groupvars='marcat', na.rm=T)[-4,]
+outPlot3 <- ggplot(plotVal,aes(x=factor(marcat), y=as.numeric(as.character(F3_Negative_3Fac)))) +
+geom_bar(stat='identity', position=position_dodge(), size=.1) +
+labs(title='F3_Negative_3Fac', x='Marcat', y='Mean Value') +
+theme_bw() +
+geom_errorbar(aes(ymin=F3_Negative_3Fac-se, ymax=F3_Negative_3Fac+se),width = .1, position=position_dodge(.9))
 
 pdf('marcatByPsychFactorInteractionCog.pdf', width=30, height=10)
 out.plot.one
+dev.off()
+
+pdf('subPsychFacScoreUpperTertile.pdf')
+outPlot1
+outPlot2
+outPlot3
 dev.off()
 
 ## It looks like this effect is being driven by F1 exec comp cog
@@ -63,25 +106,28 @@ anova(lm(overall_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2
 anova(lm(f1_exec_comp_cog_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
 anova(lm(f2_social_cog_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
 anova(lm(f3_memory_accuracy ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(wrat4CrStd ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(wrat4CrRaw ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+
 data.tmp <- data
-data.tmp$None <- residuals(lm(as.formula(paste("f1_exec_comp_cog_accuracy"," ~ sex + ageatcnb1")), data=data.tmp, na.action=na.exclude))
-data.tmp$onlySES <- residuals(lm(as.formula(paste("f1_exec_comp_cog_accuracy"," ~ sex + ageatcnb1+envses")), data=data.tmp, na.action=na.exclude))
-data.tmp$onlyRace <- residuals(lm(as.formula(paste("f1_exec_comp_cog_accuracy"," ~ sex + ageatcnb1+factor(race2)")), data=data.tmp, na.action=na.exclude))
-data.tmp$Both <- residuals(lm(as.formula(paste("f1_exec_comp_cog_accuracy"," ~ sex + ageatcnb1+envses+factor(race2)")), data=data.tmp, na.action=na.exclude))
+data.tmp$None <- residuals(lm(as.formula(paste("overall_accuracy"," ~ sex + ageatcnb1")), data=data.tmp, na.action=na.exclude))
+data.tmp$onlySES <- residuals(lm(as.formula(paste("overall_accuracy"," ~ sex + ageatcnb1+envses")), data=data.tmp, na.action=na.exclude))
+data.tmp$onlyRace <- residuals(lm(as.formula(paste("overall_accuracy"," ~ sex + ageatcnb1+factor(race2)")), data=data.tmp, na.action=na.exclude))
+data.tmp$Both <- residuals(lm(as.formula(paste("overall_accuracy"," ~ sex + ageatcnb1+envses+factor(race2)")), data=data.tmp, na.action=na.exclude))
 data.tmp$marcat <- factor(data.tmp$marcat,levels=c('NU','OU','FU'))
 data.tmp <- data.tmp[-which(is.na(data.tmp$marcat)),]
 data.tmp <- data.tmp[,c(char.vec,'None','onlySES','onlyRace','Both')]
 data.tmp <- melt(data.tmp, id.vars=c(char.vec))
 out.plot.one.cog <- ggplot(data.tmp, aes(x=psychosis_ar_4factor,y=value, group=marcat, color=marcat)) +
-#    geom_point() +
-    geom_smooth(method='lm') +
-    xlab("Psychosis Loading") +
+    geom_point(alpha=.5) +
+    geom_smooth(method='lm', alpha=0) +
+    xlab("Psychosis Score") +
     ylab("Executive Function") +
     scale_colour_manual(name = "marcat",values=c("NU"="Red","OU"="Green","FU"="Blue")) +
     theme_bw() +
-theme(legend.position="bottom",text = element_text(size=28,face='bold')) +
-facet_grid(.~variable)
-png("cogInteraction.png", width=32, height=12, units='in', res=300)
+    theme(legend.position="bottom",text = element_text(size=28,face='bold')) +
+    facet_grid(.~variable)
+png("cogInteractionOverall.png", width=32, height=12, units='in', res=300)
 out.plot.one.cog
 dev.off()
 ## Now do speed
@@ -135,7 +181,7 @@ xVol <- melt(xVol, id.vars=char.vec)
 xVol <- xVol[complete.cases(xVol),]
 mod.vol3 <- nlme::lme(value~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
 ## Now do all of the individual volume HiLo lobes
-pdf('regionEffects.pdf', width=60, height=12)
+pdf('regionEffectsWithScatter.pdf', width=60, height=12)
 for(lobeVal in c(1:3,5:9)){
     colVals <- names(img.data)[357:495]
     dim(colVals) <- c(139,1)
@@ -176,10 +222,10 @@ for(lobeVal in c(1:3,5:9)){
         xVol$marcat <- factor(xVol$marcat,levels=c('NU','OU','FU'))
         xVol <- xVol[-which(is.na(xVol$marcat)),]
         out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
-        #geom_point() +
+        geom_point(alpha=.5) +
         facet_grid(.~variable) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        geom_smooth(method='lm')
+        geom_smooth(method='lm',alpha=0)
         print(out.plot.one)
     }
 }
@@ -197,7 +243,7 @@ xTr <- img.data[,c(char.vec, tmp)]
 xTr[,10:17] <- scale(xTr[,10:17])
 xTr <- melt(xTr, id.vars=char.vec)
 mod.tr3 <- nlme::lme(value~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xTr,na.action=na.exclude)
-pdf('regionEffectsTR.pdf', width=60, height=12)
+pdf('regionEffectsTRWithScatter.pdf', width=60, height=12)
 for(lobeVal in c(1,3:4,6:9)){
     colVals <- names(img.data)[965:1095]
     dim(colVals) <- c(131,1)
@@ -239,10 +285,10 @@ for(lobeVal in c(1,3:4,6:9)){
         xVol$marcat <- factor(xVol$marcat,levels=c('NU','OU','FU'))
         xVol <- xVol[-which(is.na(xVol$marcat)),]
         out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
-        #geom_point() +
+        geom_point(alpha=.5) +
         facet_grid(.~variable) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        geom_smooth(method='lm')
+        geom_smooth(method='lm',alpha=0)
         print(out.plot.one)
     }
 }
@@ -329,7 +375,7 @@ img.data.tmp <- img.data.tmp[-which(is.na(img.data.tmp$marcat)),]
 out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=mprage_jlf_vol_TBV, group=marcat, color=factor(marcat))) +
 scale_colour_manual(name = "marcat",values=c("NU"="Red","OU"="Green","FU"="Blue")) +
 geom_smooth(method='lm') +
-xlab("Psychosis Loading") +
+xlab("Psychosis Score") +
 ylab("Total Brain Volume") +
 theme(legend.position="none",text = element_text(size=28,face='bold')) +
 annotate("text", -Inf, Inf, label = "F = 6.0", hjust = 0, vjust = 25.5, size=12) +
@@ -358,7 +404,7 @@ img.data.tmp <- img.data.tmp[-which(is.na(img.data.tmp$marcat)),]
 out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=mprage_jlfHiLoLobe_vol_Temporal, group=marcat, color=factor(marcat))) +
 scale_colour_manual(name = "marcat",values=c("NU"="Red","OU"="Green","FU"="Blue")) +
 geom_smooth(method='lm') +
-xlab("Psychosis Loading") +
+xlab("Psychosis Score") +
 ylab("Temporal Lobe Volume") +
 theme(legend.position="none",text = element_text(size=28,face='bold')) +
 annotate("text", -Inf, Inf, label = "F = 8.4", hjust = 0, vjust = 12.5, size=12) +
@@ -414,7 +460,7 @@ anova(lm(dti_jlf_tr_MeanWholeBrainTR ~ ageatcnb1+sex+envses+(marcat+psychosis_ar
 out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=dti_jlf_tr_MeanWholeBrainTR, group=marcat, color=factor(marcat))) +
 scale_colour_manual(name = "marcat",values=c("NU"="Red","OU"="Green","FU"="Blue")) +
 geom_smooth(method='lm') +
-xlab("Psychosis Loading") +
+xlab("Psychosis Score") +
 ylab("Whole Brain Mean Diffusivity") +
 theme(legend.position="none",text = element_text(size=28,face='bold')) +
 annotate("text", -Inf, Inf, label = "F = 4.7", hjust = 0, vjust = 25.5, size=12) +
@@ -445,7 +491,7 @@ anova(lm(dti_jlf_tr_MeanWholeBrainTR ~ ageatcnb1+sex+envses+(marcat+psychosis_ar
 out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=dti_jlfHiLoLobe_tr_Occipital, group=marcat, color=factor(marcat))) +
 scale_colour_manual(name = "marcat",values=c("NU"="Red","OU"="Green","FU"="Blue")) +
 geom_smooth(method='lm') +
-xlab("Psychosis Loading") +
+xlab("Psychosis Score") +
 ylab("Occipital Lobe Mean Diffusivity") +
 theme(legend.position="none",text = element_text(size=28,face='bold')) +
 annotate("text", -Inf, Inf, label = "F = 5.3", hjust = 0, vjust = 12.5, size=12) +
