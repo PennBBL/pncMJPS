@@ -90,6 +90,16 @@ labs(title='F3_Negative_3Fac', x='Marcat', y='Mean Value') +
 theme_bw() +
 geom_errorbar(aes(ymin=F3_Negative_3Fac-se, ymax=F3_Negative_3Fac+se),width = .1, position=position_dodge(.9))
 
+## Now load the prs scores and attach them to the tmp.dat
+prs.scores <- read.csv('./PRS_Adon.csv')
+tmp.dat.prs <- merge(tmp.dat, prs.scores)
+plotVal <- summarySE(data=tmp.dat.prs, measurevar='PRS', groupvars='marcat', na.rm=T)[-4,]
+outPlot4 <- ggplot(plotVal,aes(x=factor(marcat), y=as.numeric(as.character(PRS)))) +
+geom_bar(stat='identity', position=position_dodge(), size=.1) +
+labs(title='PRS', x='Marcat', y='Mean Value') +
+theme_bw() +
+geom_errorbar(aes(ymin=PRS-se, ymax=PRS+se),width = .1, position=position_dodge(.9))
+
 pdf('marcatByPsychFactorInteractionCog.pdf', width=30, height=10)
 out.plot.one
 dev.off()
@@ -98,6 +108,7 @@ pdf('subPsychFacScoreUpperTertile.pdf')
 outPlot1
 outPlot2
 outPlot3
+outPlot4
 dev.off()
 
 ## It looks like this effect is being driven by F1 exec comp cog
@@ -180,6 +191,27 @@ xVol[,10:18] <- scale(xVol[,10:18])
 xVol <- melt(xVol, id.vars=char.vec)
 xVol <- xVol[complete.cases(xVol),]
 mod.vol3 <- nlme::lme(value~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor*variable,random=~1|bblid,data=xVol,na.action=na.exclude)
+## Now plot the lobe effects
+xVol <- img.data[,c(char.vec, tmp)]
+xVol[,10:18] <- scale(xVol[,10:18])
+anova(lm(mprage_jlfHiLoLobe_vol_Basal_Ganglia~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_Limbic~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_Frontal_Orbital~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_Frontal_Dorsal~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_Temporal~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_Parietal~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_Occipital~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_Cerebellum~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+anova(lm(mprage_jlfHiLoLobe_vol_White_Matter~ageAtScan1+sex+envses+marcat*psychosis_ar_4factor, data=xVol))
+xVol <- melt(xVol, id.vars=char.vec)
+xVol <- xVol[complete.cases(xVol),]
+out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
+geom_point(alpha=.5) +
+facet_grid(.~variable) +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+geom_smooth(method='lm',alpha=0)
+## Now plot lobar effects
+pdf()
 ## Now do all of the individual volume HiLo lobes
 pdf('regionEffectsWithScatter.pdf', width=60, height=12)
 for(lobeVal in c(1:3,5:9)){
