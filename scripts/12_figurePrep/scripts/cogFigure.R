@@ -17,6 +17,47 @@ xCog$marcat <- factor(xCog$marcat)
 ## Now run the model
 mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+factor(race2)+(marcat+psychosis_ar_4factor+variable)^3+(1|bblid),data=xCog,na.action=na.exclude)
 
+## Now explore a GAF interaction
+gaf.data <- read.csv('../../11_repCogFinding/scripts/ERS_7-20-2018.csv')
+x.gaf <- merge(x, gaf.data, by='bblid')
+char.vec2 <- c("bblid","envses","sex.x","race2","ageatcnb1","psBinary","mjbinary","psychosis_ar_4factor","marcat")
+cog.names <- c("gaf001")
+## Now look for an interaction with gaf
+x2 <- x.gaf[,c(char.vec2,cog.names)]
+lm.check <- lm(gaf001 ~ ageatcnb1+sex.x+envses+factor(race2)+marcat*psychosis_ar_4factor, data=x2)
+
+
+## Now prepare table 1
+n.val <- summarySE(data=x, measurevar='ageatcnb1', groupvars='marcat')[c('2','3','1'),'N']
+mean.age <- round(summarySE(data=x, measurevar='ageatcnb1', groupvars='marcat')[c('2','3','1'),'ageatcnb1']/12,2)
+mean.age.sd <- round(summarySE(data=x, measurevar='ageatcnb1', groupvars='marcat')[c('2','3','1'),'sd']/12,2)
+sex.perc.male <- round(summarySE(data=x[which(x$sex=='1'),], measurevar='ageatcnb1', groupvars='marcat')[c('2','3','1'),'N']/summarySE(data=x, measurevar='ageatcnb1', groupvars='marcat')[c('2','3','1'),'N'],2)
+race.row.NU <- round((table(x$marcat, x$race2) / rowSums(table(x$marcat, x$race2)))[2,],2)
+race.row.OU <- round((table(x$marcat, x$race2) / rowSums(table(x$marcat, x$race2)))[3,],2)
+race.row.FU <- round((table(x$marcat, x$race2) / rowSums(table(x$marcat, x$race2)))[1,],2)
+## Now load the wrat scores
+wrat.scores <- read.csv('../../11_repCogFinding/scripts/n9498_cnb_wrat_scores_20161215.csv')
+xWrat <- merge(x, wrat.scores)
+wrat.vals <- round(summarySE(data=xWrat, measurevar='wrat4CrStd', groupvars='marcat',na.rm=T)[c('2','3','1'),'wrat4CrStd'],2)
+wrat.sd <- round(summarySE(data=xWrat, measurevar='wrat4CrStd', groupvars='marcat',na.rm=T)[c('2','3','1'),'sd'],2)
+## Now do the psychosis factor
+psy.fac <- round(summarySE(data=x, measurevar='psychosis_ar_4factor', groupvars='marcat',na.rm=T)[c('2','3','1'),'psychosis_ar_4factor'],2)
+psy.fac.sd <- round(summarySE(data=x, measurevar='psychosis_ar_4factor', groupvars='marcat',na.rm=T)[c('2','3','1'),'sd'],2)
+
+## Now write the table
+out.mat <- matrix(NA, ncol=3, nrow=8)
+out.mat[1,] <- n.val
+out.mat[2,] <- paste(mean.age, '(', mean.age.sd, ')', sep='')
+out.mat[3,] <- sex.perc.male
+out.mat[4:6,1] <- race.row.NU
+out.mat[4:6,2] <- race.row.OU
+out.mat[4:6,3] <- race.row.FU
+out.mat[7,] <- paste(wrat.vals, '(', wrat.sd, ')', sep='')
+out.mat[8,] <- paste(psy.fac, '(', psy.fac.sd, ')', sep='')
+colnames(out.mat) <- c("Non-User", "Occasional User", "Frequent User")
+rownames(out.mat) <- c("N","Age", "% Male", "Caucasian", "African-American", "Asian/Native American/Other", "Wrat Scores", "Psychosis Factor Score")
+write.csv(out.mat, "CognitiveTable.csv", quote=F)
+
 
 ## Now regress out covariates of non interest
 out.data.one <- NULL
