@@ -21,6 +21,7 @@ wrat.scores <- read.csv('./n9498_cnb_wrat_scores_20161215.csv')
 data <- merge(data, wrat.scores)
 psy.fac <- read.csv('./GO1_Psychosis_Factor_Scores.csv')
 data <- merge(data, psy.fac)
+#data <- merge(data, fam.dat)
 
 ## Now melt the data frame, so it is ready for a MEM
 char.vec <- c("bblid","envses","sex","race2","ageatcnb1","psBinary","mjbinary","psychosis_ar_4factor","marcat")
@@ -32,6 +33,7 @@ xCog$marcat <- factor(xCog$marcat)
 mod.cog <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psBinary*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog2 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
+mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+factor(race2)+(marcat+psychosis_ar_4factor+variable)^3+(1|bblid),data=xCog,na.action=na.exclude)
 
 ## Now do the fine for accuracy
 cog.names <- c("f1_exec_comp_cog_accuracy","f2_social_cog_accuracy","f3_memory_accuracy","overall_accuracy")
@@ -42,6 +44,9 @@ xCog$marcat <- factor(xCog$marcat)
 mod.cog <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psBinary*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog2 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+factor(race2)+(marcat+psychosis_ar_4factor+variable)^3+(1|bblid),data=xCog,na.action=na.exclude)
+mod.cog4 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*Fam_Hx_Strict*variable+(1|bblid),data=xCog,na.action=na.exclude)
+mod.cog5 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*trauma_T1*variable+(1|bblid),data=xCog,na.action=na.exclude)
+
 ## Now plot it
 ## Now do continous plots here
 out.data.one <- NULL
@@ -53,7 +58,7 @@ for(i in c("f1_exec_comp_cog_accuracy","f2_social_cog_accuracy","f3_memory_accur
 tmp.data <- data.tmp[,c(char.vec,cog.names)]
 xVol <- melt(tmp.data, id.vars=char.vec)
 xVol <- xVol[-which(is.na(xVol$marcat)),]
-out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
+out.plot.one <- ggplot(xVol[!is.na(xVol$Fam_Hx_Strict),], aes(x=factor(Fam_Hx_Strict), y=value, group=marcat, color=factor(marcat))) +
 #geom_point() +
 facet_grid(.~variable) +
 theme(axis.text.x = element_text(angle = 0, hjust = 1)) +
