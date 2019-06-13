@@ -17,6 +17,16 @@ xCog$marcat <- factor(xCog$marcat)
 ## Now run the model
 mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+factor(race2)+(marcat+psychosis_ar_4factor+variable)^3+(1|bblid),data=xCog,na.action=na.exclude)
 
+## Now run individual models
+p.adjust(
+c(anova(lm(f1_exec_comp_cog_accuracy~ageatcnb1+sex+envses+factor(race2)+marcat*psychosis_ar_4factor, data=x))['marcat:psychosis_ar_4factor','Pr(>F)'],
+anova(lm(f2_social_cog_accuracy~ageatcnb1+sex+envses+factor(race2)+marcat*psychosis_ar_4factor, data=x))['marcat:psychosis_ar_4factor','Pr(>F)'],
+anova(lm(f3_memory_accuracy~ageatcnb1+sex+envses+factor(race2)+marcat*psychosis_ar_4factor, data=x))['marcat:psychosis_ar_4factor','Pr(>F)'],
+anova(lm(overall_accuracy~ageatcnb1+sex+envses+factor(race2)+marcat*psychosis_ar_4factor, data=x))['marcat:psychosis_ar_4factor','Pr(>F)']), method='fdr')
+
+## Now test FDR correction
+
+
 ## Now explore a GAF interaction
 gaf.data <- read.csv('../../11_repCogFinding/scripts/ERS_7-20-2018.csv')
 x.gaf <- merge(x, gaf.data, by='bblid')

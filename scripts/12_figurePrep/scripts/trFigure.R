@@ -55,10 +55,10 @@ x$dti_jlf_tr_MeanWholeBrainTR <- residuals(lm(dti_jlf_tr_MeanWholeBrainTR~ageAtS
 
 
 out.plot.one <- ggplot(x, aes(x=psychosis_ar_4factor, y=dti_jlf_tr_MeanWholeBrainTR, group=marcat, color=factor(marcat))) +
-theme(axis.text.x = element_text(angle = 0, hjust = 1),legend.position="none", text=element_text(size=32)) +
+theme(axis.text.x = element_text(angle = 0, hjust = 1),legend.position="none", text=element_text(size=28)) +
 scale_colour_manual(values=cbbPalette) +
 geom_smooth(method='lm') +
-xlab("") +
+xlab("PSYCHOSIS FACTOR SCORE") +
 ylab("Whole Brain MD") +
 coord_cartesian(ylim=c(-1,1))
 png('TBMD.png')
@@ -85,10 +85,10 @@ for(z in 1:length(plotLobes)){
     i <- plotLobes[z]
     xVol <- data.tmp[which(data.tmp$variable==i),]
     out.plot.one <- ggplot(xVol, aes(x=psychosis_ar_4factor, y=value, group=marcat, color=factor(marcat))) +
-    theme(axis.text.x = element_text(angle = 0, hjust = 1),legend.position="none", text=element_text(size=32)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 1),legend.position="none", text=element_text(size=28)) +
     scale_colour_manual(values=cbbPalette) +
     geom_smooth(method='lm') +
-    xlab("") +
+    xlab("PSYCHOSIS FACTOR SCORE") +
     ylab(yLab[z]) +
     coord_cartesian(ylim=c(-1,1))
     out.plot.name <- paste(i, ".png", sep='')
@@ -103,12 +103,14 @@ source('../../../../../jlfVisualizer/scripts/Rfunction/makeITKSnapColorTable.R')
 ## so remove the frequent users
 
 ## Now get all of the F stats
+out.mat.no.rm <- NULL
 out.mat.rm.FU <- NULL
 out.mat.rm.OU <- NULL
 out.mat.rm.NU <- NULL
 for(roi in names(img.data)[965:1095]){
     ## Run the model
     tmp.form <- as.formula(paste(roi, "~ageAtScan1+sex+envses+race2+averageManualRating+marcat*psychosis_ar_4factor", sep=''))
+    mod.out.all <- anova(lm(tmp.form, data=img.data, na.action=na.exclude))['marcat:psychosis_ar_4factor',c('F value','Pr(>F)')]
     mod.out <- anova(lm(tmp.form, data=img.data[-which(img.data$marcat=='FU'),], na.action=na.exclude))['marcat:psychosis_ar_4factor',c('F value','Pr(>F)')]
     mod.out.two <- anova(lm(tmp.form, data=img.data[-which(img.data$marcat=='OU'),], na.action=na.exclude))['marcat:psychosis_ar_4factor',c('F value','Pr(>F)')]
     mod.out.three <- anova(lm(tmp.form, data=img.data[-which(img.data$marcat=='NU'),], na.action=na.exclude))['marcat:psychosis_ar_4factor',c('F value','Pr(>F)')]
@@ -116,20 +118,21 @@ for(roi in names(img.data)[965:1095]){
     lobeVal <- findLobe(roi)
     
     ## Now prepare the data
+    out.row.all <- cbind(roi,lobeVal,mod.out.all)
     out.row.one <- cbind(roi,lobeVal,mod.out)
     out.row.two <- cbind(roi, lobeVal, mod.out.two)
     out.row.three <- cbind(roi, lobeVal, mod.out.three)
     
     ## Now make the output row
+    out.mat.no.rm <- rbind(out.mat.no.rm, out.row.all)
     out.mat.rm.FU <- rbind(out.mat.rm.FU, out.row.one)
     out.mat.rm.OU <- rbind(out.mat.rm.OU, out.row.two)
     out.mat.rm.NU <- rbind(out.mat.rm.NU, out.row.three)
-    
 }
 
-out.mat.rm.FU <- cbind(out.mat.rm.FU, rep(NA, dim(out.mat.rm.FU)[1]))
-out.mat.rm.OU <- cbind(out.mat.rm.OU, rep(NA, dim(out.mat.rm.FU)[1]))
-out.mat.rm.NU <- cbind(out.mat.rm.NU, rep(NA, dim(out.mat.rm.FU)[1]))
+#out.mat.rm.FU <- cbind(out.mat.rm.FU, rep(NA, dim(out.mat.rm.FU)[1]))
+#out.mat.rm.OU <- cbind(out.mat.rm.OU, rep(NA, dim(out.mat.rm.FU)[1]))
+#out.mat.rm.NU <- cbind(out.mat.rm.NU, rep(NA, dim(out.mat.rm.FU)[1]))
 
 ## Now write the color map with all ROI's
 writeColorTableandKey(inputColumn=3, inputData=out.mat.rm.FU, maxTmp=c(0,17), minTmp=c(-.8, 0), outName="trOUvNUf")
@@ -139,3 +142,19 @@ writeColorTableandKey(inputColumn=3, inputData=out.mat.rm.NU, maxTmp=c(0,17), mi
 ## Now copy these over to chead
 system("scp tr*f*csv arosen@chead:/data/jux/BBL/projects/pncMJPS/data/colorAndKey/")
 system("scp tr*f*txt arosen@chead:/data/jux/BBL/projects/pncMJPS/data/colorAndKey/")
+
+## Now combine all of these into one table
+out.mat.no.rm <- as.data.frame(out.mat.no.rm)
+out.mat.rm.FU <- as.data.frame(out.mat.rm.FU)
+out.mat.rm.OU <- as.data.frame(out.mat.rm.OU)
+out.mat.rm.NU <- as.data.frame(out.mat.rm.NU)
+out.sup.table <- merge(out.mat.no.rm, out.mat.rm.FU, by=c('roi','lobeVal'),suffixes = c(".NoRm",".NoFU"))
+out.sup.table <- merge(out.sup.table, out.mat.rm.OU, by=c('roi','lobeVal'))
+colnames(out.sup.table)[7:8] <- paste(names(out.sup.table)[7:8], '.NoOU', sep='')
+out.sup.table <- merge(out.sup.table, out.mat.rm.NU, by=c('roi','lobeVal'))
+colnames(out.sup.table)[9:10] <- paste(names(out.sup.table)[9:10], '.NoNU', sep='')
+
+## Now save the table with any nom sig values
+index <- unique(unlist(apply(out.sup.table[,c(4,6,8,10)], 2, function(x) which(x<.005))))
+out.sup.table <- out.sup.table[index,]
+write.csv(out.sup.table, "allNomSigSupValsTR.csv", quote=F, row.names=F)
