@@ -36,17 +36,26 @@ wrat.sd <- round(summarySE(data=xWrat, measurevar='wrat4CrStd', groupvars='marca
 psy.fac <- round(summarySE(data=x, measurevar='psychosis_ar_4factor', groupvars='marcat',na.rm=T)[c('2','3','1'),'psychosis_ar_4factor'],2)
 psy.fac.sd <- round(summarySE(data=x, measurevar='psychosis_ar_4factor', groupvars='marcat',na.rm=T)[c('2','3','1'),'sd'],2)
 
+## Now obtain p values for all of these variables
+age.p.val <- round(anova(lm(ageAtScan1 ~ marcat, data=x))['marcat', 'Pr(>F)'],8)
+sex.p.val <- round(as.numeric(chisq.test(table(x$sex, x$marcat))['p.value']),8)
+race.p.val <- round(as.numeric(chisq.test(table(x$race2, x$marcat))['p.value']),5)
+wrat.p.val <- round(anova(lm(wrat4CrStd ~ marcat, data=xWrat))['marcat', 'Pr(>F)'],5)
+psy.p.val <- round(anova(lm(psychosis_ar_4factor ~ marcat, data=xWrat))['marcat', 'Pr(>F)'],5)
+
 ## Now write the table
-out.mat <- matrix(NA, ncol=3, nrow=8)
-out.mat[1,] <- n.val
-out.mat[2,] <- paste(mean.age, '(', mean.age.sd, ')', sep='')
-out.mat[3,] <- sex.perc.male
+out.mat <- matrix(NA, ncol=4, nrow=8)
+out.mat[1,] <- c(n.val, 'NA')
+out.mat[2,] <- c(paste(mean.age, '(', mean.age.sd, ')', sep=''), age.p.val)
+out.mat[3,1:3] <- sex.perc.male
+out.mat[3,4] <- as.numeric(sex.p.val)
 out.mat[4:6,1] <- race.row.NU
 out.mat[4:6,2] <- race.row.OU
 out.mat[4:6,3] <- race.row.FU
-out.mat[7,] <- paste(wrat.vals, '(', wrat.sd, ')', sep='')
-out.mat[8,] <- paste(psy.fac, '(', psy.fac.sd, ')', sep='')
-colnames(out.mat) <- c("Non-User", "Occasional User", "Frequent User")
+out.mat[4:6,4] <- as.numeric(race.p.val)
+out.mat[7,] <- c(paste(wrat.vals, '(', wrat.sd, ')', sep=''),wrat.p.val)
+out.mat[8,] <- c(paste(psy.fac, '(', psy.fac.sd, ')', sep=''),psy.p.val)
+colnames(out.mat) <- c("Non-User", "Occasional User", "Frequent User", "p")
 rownames(out.mat) <- c("N","Age", "% Male", "Caucasian", "African-American", "Asian/Native American/Other", "Wrat Scores", "Psychosis Factor Score")
 write.csv(out.mat, "MeanDiffTable.csv", quote=F)
 
