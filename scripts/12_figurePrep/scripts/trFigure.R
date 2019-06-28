@@ -4,14 +4,14 @@ source('../functions/functions.R')
 
 ## Load data
 img.data <-readRDS("../../01_dataPrep/scripts/mjPSCogImgIsol.RDS")
-char.vec <- c("bblid","envses","sex","race2","ageAtScan1","psBinary","mjbinary","psychosis_ar_4factor","marcat","dti64Tsnr")
+char.vec <- c("bblid","envses","sex","race2","ageAtScan1","psBinary","mjbinary","psychosis_ar_4factor","marcat","dti64Tsnr","mj_firstuse")
 global.val <- c("mprage_jlf_vol_TBV","dti_jlf_tr_MeanWholeBrainTR","pcasl_jlf_cbf_MeanGMCBF","mprage_jlf_gmd_MeanGMD","rest_jlf_alff_MeanALFF","rest_jlf_reho_MeanReho")
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 ## Run the mem
 x <- img.data[,c(char.vec,global.val)]
 x <- x[complete.cases(x$dti_jlf_tr_MeanWholeBrainTR),]
 ## Now scale the values w/in modality
-x[,11:dim(x)[2]] <- scale(x[,11:dim(x)[2]])
+x[,12:dim(x)[2]] <- scale(x[,12:dim(x)[2]])
 xCog <- melt(x, id.vars=char.vec)
 xCog$marcat <- factor(xCog$marcat)
 ## Now run the model
@@ -24,14 +24,23 @@ n.val <- summarySE(data=x, measurevar='ageAtScan1', groupvars='marcat')[c('2','3
 mean.age <- round(summarySE(data=x, measurevar='ageAtScan1', groupvars='marcat')[c('2','3','1'),'ageAtScan1']/12,2)
 mean.age.sd <- round(summarySE(data=x, measurevar='ageAtScan1', groupvars='marcat')[c('2','3','1'),'sd']/12,2)
 sex.perc.male <- round(summarySE(data=x[which(x$sex=='1'),], measurevar='ageAtScan1', groupvars='marcat')[c('2','3','1'),'N']/summarySE(data=x, measurevar='ageAtScan1', groupvars='marcat')[c('2','3','1'),'N'],2)
+sex.perc.male.n <- summarySE(data=x[which(x$sex=='1'),], measurevar='ageAtScan1', groupvars='marcat')[c('2','3','1'),'N']
+sex.perc.female.n <- summarySE(data=x[which(x$sex=='2'),], measurevar='ageAtScan1', groupvars='marcat')[c('2','3','1'),'N']
+
 race.row.NU <- round((table(x$marcat, x$race2) / rowSums(table(x$marcat, x$race2)))[2,],2)
+race.row.NU.n <-  table(x$marcat, x$race2)[2,]
 race.row.OU <- round((table(x$marcat, x$race2) / rowSums(table(x$marcat, x$race2)))[3,],2)
+race.row.OU.n <- table(x$marcat, x$race2)[3,]
 race.row.FU <- round((table(x$marcat, x$race2) / rowSums(table(x$marcat, x$race2)))[1,],2)
+race.row.FU.n <- table(x$marcat, x$race2)[1,]
 ## Now load the wrat scores
 wrat.scores <- read.csv('../../11_repCogFinding/scripts/n9498_cnb_wrat_scores_20161215.csv')
 xWrat <- merge(x, wrat.scores)
 wrat.vals <- round(summarySE(data=xWrat, measurevar='wrat4CrStd', groupvars='marcat',na.rm=T)[c('2','3','1'),'wrat4CrStd'],2)
 wrat.sd <- round(summarySE(data=xWrat, measurevar='wrat4CrStd', groupvars='marcat',na.rm=T)[c('2','3','1'),'sd'],2)
+## Now do age at first use
+age.first <- round(summarySE(data=x, measurevar='mj_firstuse', groupvars='marcat', na.rm=T)[c('2','3','1'),'mj_firstuse'],2)
+age.first.sd <- round(summarySE(data=x, measurevar='mj_firstuse', groupvars='marcat', na.rm=T)[c(2,3,1),'sd'],2)
 ## Now do the psychosis factor
 psy.fac <- round(summarySE(data=x, measurevar='psychosis_ar_4factor', groupvars='marcat',na.rm=T)[c('2','3','1'),'psychosis_ar_4factor'],2)
 psy.fac.sd <- round(summarySE(data=x, measurevar='psychosis_ar_4factor', groupvars='marcat',na.rm=T)[c('2','3','1'),'sd'],2)
@@ -41,22 +50,24 @@ age.p.val <- round(anova(lm(ageAtScan1 ~ marcat, data=x))['marcat', 'Pr(>F)'],8)
 sex.p.val <- round(as.numeric(chisq.test(table(x$sex, x$marcat))['p.value']),8)
 race.p.val <- round(as.numeric(chisq.test(table(x$race2, x$marcat))['p.value']),5)
 wrat.p.val <- round(anova(lm(wrat4CrStd ~ marcat, data=xWrat))['marcat', 'Pr(>F)'],5)
+age.first.p.val <- round(anova(lm(mj_firstuse~marcat, data=x))['marcat','Pr(>F)'],8)
 psy.p.val <- round(anova(lm(psychosis_ar_4factor ~ marcat, data=xWrat))['marcat', 'Pr(>F)'],5)
 
 ## Now write the table
-out.mat <- matrix(NA, ncol=4, nrow=8)
+out.mat <- matrix(NA, ncol=4, nrow=9)
 out.mat[1,] <- c(n.val, 'NA')
 out.mat[2,] <- c(paste(mean.age, '(', mean.age.sd, ')', sep=''), age.p.val)
-out.mat[3,1:3] <- sex.perc.male
+out.mat[3,1:3] <- paste(sex.perc.male.n, "/", sex.perc.female.n, " (", sex.perc.male, ")", sep='')
 out.mat[3,4] <- as.numeric(sex.p.val)
-out.mat[4:6,1] <- race.row.NU
-out.mat[4:6,2] <- race.row.OU
-out.mat[4:6,3] <- race.row.FU
+out.mat[4:6,1] <- paste(race.row.NU.n, " (",race.row.NU,")", sep='')
+out.mat[4:6,2] <- paste(race.row.OU.n, " (",race.row.OU,")", sep='')
+out.mat[4:6,3] <- paste(race.row.FU.n, " (",race.row.FU,")", sep='')
 out.mat[4:6,4] <- as.numeric(race.p.val)
 out.mat[7,] <- c(paste(wrat.vals, '(', wrat.sd, ')', sep=''),wrat.p.val)
-out.mat[8,] <- c(paste(psy.fac, '(', psy.fac.sd, ')', sep=''),psy.p.val)
+out.mat[8,] <- c(paste(age.first, '(', age.first.sd, ')', sep=''),age.first.p.val)
+out.mat[9,] <- c(paste(psy.fac, '(', psy.fac.sd, ')', sep=''),psy.p.val)
 colnames(out.mat) <- c("Non-User", "Occasional User", "Frequent User", "p")
-rownames(out.mat) <- c("N","Age", "% Male", "Caucasian", "African-American", "Asian/Native American/Other", "Wrat Scores", "Psychosis Factor Score")
+rownames(out.mat) <- c("N","Age", "% Male", "Caucasian", "African-American", "Asian/Native American/Other", "Wrat Scores", "Age first use","Psychosis Factor Score")
 write.csv(out.mat, "MeanDiffTable.csv", quote=F)
 
 ## Now produce the global effects scatter plot
@@ -116,6 +127,7 @@ out.mat.no.rm <- NULL
 out.mat.rm.FU <- NULL
 out.mat.rm.OU <- NULL
 out.mat.rm.NU <- NULL
+pdf('regionalEffectsTR.pdf')
 for(roi in names(img.data)[965:1095]){
     ## Run the model
     tmp.form <- as.formula(paste(roi, "~ageAtScan1+sex+envses+race2+averageManualRating+marcat*psychosis_ar_4factor", sep=''))
@@ -137,7 +149,11 @@ for(roi in names(img.data)[965:1095]){
     out.mat.rm.FU <- rbind(out.mat.rm.FU, out.row.one)
     out.mat.rm.OU <- rbind(out.mat.rm.OU, out.row.two)
     out.mat.rm.NU <- rbind(out.mat.rm.NU, out.row.three)
+    ## Now print a visreg of these effects
+    tmp <- lm(tmp.form, data=img.data, na.action=na.exclude)
+    visreg(tmp, by='marcat', 'psychosis_ar_4factor', overlay=T)
 }
+dev.off()
 
 #out.mat.rm.FU <- cbind(out.mat.rm.FU, rep(NA, dim(out.mat.rm.FU)[1]))
 #out.mat.rm.OU <- cbind(out.mat.rm.OU, rep(NA, dim(out.mat.rm.FU)[1]))
