@@ -34,6 +34,7 @@ data.of.int[,c(1,6,11,12)] <- apply(data.of.int[,c(1,6,11,12)], 2, function(x) r
 ## First do the non users volume
 set.seed(1234)
 Data <- data.frame(X = data.of.int$psychosis_ar_4factor[which(data.of.int$marcat=='NU')], Y = data.of.int$f1_exec_comp_cog_accuracy[which(data.of.int$marcat=='NU')], M = data.of.int$mprage_jlf_vol_TBV[which(data.of.int$marcat=='NU')])
+Data <- Data[complete.cases(Data),]
 model <- ' # direct effect
 Y ~ c*X
 # mediator
@@ -44,32 +45,35 @@ ab := a*b
 # total effect
 total := c + (a*b)
 '
-fitNU <- bsem(model, data = Data, jagcontrol=list(method="rjparallel"))
+fitNU <- bsem(model, data = Data, bcontrol=list(method="rjparallel"), n.chains = 6)
 out.vals <- summary(fitNU)
 ## Now find the indirect path p value
-se.val <- as.numeric(out.vals[10,4]) - as.numeric(out.vals[10,4])/ (2*1.96)
+se.val <- (as.numeric(out.vals[10,5]) - as.numeric(out.vals[10,4])) / (2*2.24)
 z.val <- as.numeric(out.vals[10,2])/se.val
 p.val.vol.NU <- pnorm(-abs(z.val))
+fitNUVol <- fitNU
 
 ## Now do the occasional users volume
 Data <- data.frame(X = data.of.int$psychosis_ar_4factor[which(data.of.int$marcat=='OU')], Y = data.of.int$f1_exec_comp_cog_accuracy[which(data.of.int$marcat=='OU')], M = data.of.int$mprage_jlf_vol_TBV[which(data.of.int$marcat=='OU')])
-fitOU <- bsem(model, data = Data, jagcontrol=list(method="rjparallel"))
-summary(fitOU)
+Data <- Data[complete.cases(Data),]
+fitOU <- bsem(model, data = Data, bcontrol=list(method="rjparallel"), n.chains = 6)
 out.vals <- summary(fitOU)
 ## Now find the indirect path p value
-se.val <- as.numeric(out.vals[10,4]) - as.numeric(out.vals[10,4])/ (2*1.96)
+se.val <- (as.numeric(out.vals[10,5]) - as.numeric(out.vals[10,4])) / (2*2.24)
 z.val <- as.numeric(out.vals[10,2])/se.val
 p.val.vol.OU <- pnorm(-abs(z.val))
+fitOUVol <- fitOU
 
 ## Now do the frequent users volume
 Data <- data.frame(X = data.of.int$psychosis_ar_4factor[which(data.of.int$marcat=='FU')], Y = data.of.int$f1_exec_comp_cog_accuracy[which(data.of.int$marcat=='FU')], M = data.of.int$mprage_jlf_vol_TBV[which(data.of.int$marcat=='FU')])
-fitFU <- bsem(model, data = Data, jagcontrol=list(method="rjparallel"))
-summary(fitFU)
+Data <- Data[complete.cases(Data),]
+fitFU <- bsem(model, data = Data, bcontrol=list(method="rjparallel"), n.chains = 6)
 out.vals <- summary(fitFU)
 ## Now find the indirect path p value
-se.val <- as.numeric(out.vals[10,4]) - as.numeric(out.vals[10,4])/ (2*1.96)
+se.val <- (as.numeric(out.vals[10,5]) - as.numeric(out.vals[10,4])) / (2*2.24)
 z.val <- as.numeric(out.vals[10,2])/se.val
 p.val.vol.FU <- pnorm(-abs(z.val))
+fitFUVol <- fitFU
 
 ## Save the p values
 out.p.val.vol <- c(p.val.vol.NU,p.val.vol.OU,p.val.vol.FU)
@@ -77,35 +81,36 @@ out.p.val.vol <- c(p.val.vol.NU,p.val.vol.OU,p.val.vol.FU)
 ## Now do the DTI values
 ## First do the non users volume
 Data <- data.frame(X = data.of.int$psychosis_ar_4factor[which(data.of.int$marcat=='NU')], Y = data.of.int$f1_exec_comp_cog_accuracy[which(data.of.int$marcat=='NU')], M = data.of.int$dti_jlf_tr_MeanWholeBrainTR[which(data.of.int$marcat=='NU')])
-fitNU <- sem(model, data = Data, se='bootstrap')
-summary(fitNU)
+Data <- Data[complete.cases(Data),]
+fitNU <- bsem(model, data = Data, bcontrol=list(method="rjparallel"), n.chains = 6)
 out.vals <- summary(fitNU)
 ## Now find the indirect path p value
-se.val <- as.numeric(out.vals[10,4]) - as.numeric(out.vals[10,4])/ (2*1.96)
+se.val <- (as.numeric(out.vals[10,5]) - as.numeric(out.vals[10,4])) / (2*2.24)
 z.val <- as.numeric(out.vals[10,2])/se.val
 p.val.dti.NU <- pnorm(-abs(z.val))
 
 ## Now do the occasional users volume
 Data <- data.frame(X = data.of.int$psychosis_ar_4factor[which(data.of.int$marcat=='OU')], Y = data.of.int$f1_exec_comp_cog_accuracy[which(data.of.int$marcat=='OU')], M = data.of.int$dti_jlf_tr_MeanWholeBrainTR[which(data.of.int$marcat=='OU')])
-fitOU <- sem(model, data = Data, se='bootstrap')
-summary(fitOU)
+Data <- Data[complete.cases(Data),]
+fitOU <- bsem(model, data = Data, bcontrol=list(method="rjparallel"), n.chains = 6)
 out.vals <- summary(fitOU)
 ## Now find the indirect path p value
-se.val <- as.numeric(out.vals[10,4]) - as.numeric(out.vals[10,4])/ (2*1.96)
+se.val <- (as.numeric(out.vals[10,5]) - as.numeric(out.vals[10,4])) / (2*2.24)
 z.val <- as.numeric(out.vals[10,2])/se.val
 p.val.dti.OU <- pnorm(-abs(z.val))
 
 ## Now do the frequent users volume
 Data <- data.frame(X = data.of.int$psychosis_ar_4factor[which(data.of.int$marcat=='FU')], Y = data.of.int$f1_exec_comp_cog_accuracy[which(data.of.int$marcat=='FU')], M = data.of.int$dti_jlf_tr_MeanWholeBrainTR[which(data.of.int$marcat=='FU')])
-fitFU <- sem(model, data = Data, se='bootstrap')
-summary(fitFU)
+Data <- Data[complete.cases(Data),]
+fitFU <- bsem(model, data = Data, bcontrol=list(method="rjparallel"), n.chains = 6)
 out.vals <- summary(fitFU)
 ## Now find the indirect path p value
-se.val <- as.numeric(out.vals[10,4]) - as.numeric(out.vals[10,4])/ (2*1.96)
+se.val <- (as.numeric(out.vals[10,5]) - as.numeric(out.vals[10,4])) / (2*2.24)
 z.val <- as.numeric(out.vals[10,2])/se.val
 p.val.dti.FU <- pnorm(-abs(z.val))
 
-out.p.val.dti <- c(p.val.vol.NU,p.val.vol.OU,p.val.vol.FU)
+out.p.val.dti <- c(p.val.dti.NU,p.val.dti.OU,p.val.dti.FU)
 
 out.p.val <- rbind(out.p.val.vol, out.p.val.dti)
 write.csv(out.p.val, "outIndirectPVal.csv", quote=F)
+save.image(file='myEnvironment.RData')
