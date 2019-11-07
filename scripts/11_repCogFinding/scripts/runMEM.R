@@ -4,7 +4,7 @@ source('../functions/functions.R')
 ## Load the data
 data <- read.dta13('./cannabis_psychosis_cnb_foradon.dta')
 ## Now load the imaging data
-img.data <- read.csv("~/Documents/dataRel/n1601_imagingDataDump_2018-09-20.csv")
+img.data <- read.csv("./n1601_imagingDataDump_2018-09-20.csv")
 img.data <- img.data[which(img.data$tpvalue==1),]
 ## Make a ps vs not ps group
 data$psBinary <- 'NO'
@@ -44,8 +44,6 @@ xCog$marcat <- factor(xCog$marcat)
 mod.cog <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psBinary*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog2 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+mjbinary*psychosis_ar_4factor*variable+(1|bblid),data=xCog,na.action=na.exclude)
 mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+factor(race2)+(marcat+psychosis_ar_4factor+variable)^3+(1|bblid),data=xCog,na.action=na.exclude)
-mod.cog4 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*Fam_Hx_Strict*variable+(1|bblid),data=xCog,na.action=na.exclude)
-mod.cog5 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*trauma_T1*variable+(1|bblid),data=xCog,na.action=na.exclude)
 
 ## Now plot it
 ## Now do continous plots here
@@ -161,7 +159,7 @@ mod.cog3 <- lmerTest::lmer(value ~ ageatcnb1+sex+envses+marcat*psychosis_ar_4fac
 ## Load the data
 data <- read.dta13('./cannabis_psychosis_cnb_foradon.dta')
 ## Now load the imaging data
-img.data <- read.csv("~/Documents/dataRel/n1601_imagingDataDump_2018-09-20.csv")
+img.data <- read.csv("./n1601_imagingDataDump_2018-09-20.csv")
 old_img <-  readRDS("./mjAnovaData.RDS")
 #img.data <- img.data[which(img.data$tpvalue==1),]
 ## Make a ps vs not ps group
@@ -354,12 +352,12 @@ for(i in names(img.data)[c(grep("mprage_jlfHiLoLobe_vol", names(img.data)))]){
     img.data.tmp <- img.data
     img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + ageAtScan1 + envses")), data=img.data.tmp, na.action=na.exclude))
     img.data.tmp[,i] <- scale(img.data.tmp[,i])
-    tmp.dat <- summarySE(groupvars=c('maruse','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
+    tmp.dat <- summarySE(groupvars=c('marcat','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
     colnames(tmp.dat)[4] <- c('mean')
     tmp.dat$lobe <- i
     out.data.one <- rbind(out.data.one, tmp.dat)
 }
-out.data.one$maruse <- factor(out.data.one$maruse, levels=c('nonuser','user','frequser'))
+out.data.one$marcat <- factor(out.data.one$marcat, levels=c('nonuser','user','frequser'))
 out.plot.one <- ggplot(out.data.one, aes(x=lobe, y=mean, group=maruse, color=maruse)) +
 geom_point(position=position_dodge(.3)) +
 geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
@@ -402,7 +400,7 @@ theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
 coord_cartesian(ylim=c(-.7,.6))
 
 ## Now do TBV
-anova(lm(mprage_jlf_vol_TBV ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(mprage_jlf_vol_TBV ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=img.data))
 i <- 'mprage_jlf_vol_TBV'
 img.data.tmp <- img.data
 img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + ageAtScan1")), data=img.data.tmp, na.action=na.exclude))
@@ -431,7 +429,7 @@ multiplot(out.plot.one, out.plot.two, cols=2)
 dev.off()
 
 ## Now the strongest volume interaction, the temporal lobe
-anova(lm(mprage_jlfHiLoLobe_vol_Temporal ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(mprage_jlfHiLoLobe_vol_Temporal ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=img.data))
 i <- 'mprage_jlfHiLoLobe_vol_Temporal'
 img.data.tmp <- img.data
 img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + ageAtScan1")), data=img.data.tmp, na.action=na.exclude))
@@ -457,12 +455,12 @@ for(i in names(img.data)[c(grep("dti_jlfHiLoLobe_tr", names(img.data)))]){
     img.data.tmp <- img.data
     img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + ageAtScan1")), data=img.data.tmp, na.action=na.exclude))
     img.data.tmp[,i] <- scale(img.data.tmp[,i])
-    tmp.dat <- summarySE(groupvars=c('maruse','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
+    tmp.dat <- summarySE(groupvars=c('marcat','psBinary'), data=img.data.tmp, measurevar=i, na.rm=T)
     colnames(tmp.dat)[4] <- c('mean')
     tmp.dat$lobe <- i
     out.data.one <- rbind(out.data.one, tmp.dat)
 }
-out.data.one$maruse <- factor(out.data.one$maruse, levels=c('nonuser','user','frequser'))
+out.data.one$marcat <- factor(out.data.one$marcat, levels=c('nonuser','user','frequser'))
 out.plot.two <- ggplot(out.data.one, aes(x=lobe, y=mean, group=maruse, color=maruse)) +
 geom_point(position=position_dodge(.3)) +
 geom_errorbar(aes(ymin=mean-se, ymax=mean+se),position=position_dodge(.3)) +
@@ -493,7 +491,7 @@ img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + ageAtScan1 + dti64
 img.data.tmp[,i] <- scale(img.data.tmp[,i])
 img.data.tmp$marcat <- factor(img.data.tmp$marcat,levels=c('NU','OU','FU'))
 img.data.tmp <- img.data.tmp[-which(is.na(img.data.tmp$marcat)),]
-anova(lm(dti_jlf_tr_MeanWholeBrainTR ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(dti_jlf_tr_MeanWholeBrainTR ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=img.data))
 out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=dti_jlf_tr_MeanWholeBrainTR, group=marcat, color=factor(marcat))) +
 scale_colour_manual(name = "marcat",values=c("NU"="Red","OU"="Green","FU"="Blue")) +
 geom_smooth(method='lm') +
@@ -517,14 +515,14 @@ dev.off()
 
 
 ## Now do the strongest lobar relationship
-anova(lm(dti_jlfHiLoLobe_tr_Occipital ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(dti_jlfHiLoLobe_tr_Occipital ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=img.data))
 i <- 'dti_jlfHiLoLobe_tr_Occipital'
 img.data.tmp <- img.data
 img.data.tmp[,i] <- residuals(lm(as.formula(paste(i," ~ sex + ageAtScan1 + dti64Tsnr + envses")), data=img.data.tmp, na.action=na.exclude))
 img.data.tmp[,i] <- scale(img.data.tmp[,i])
 img.data.tmp$marcat <- factor(img.data.tmp$marcat,levels=c('NU','OU','FU'))
 img.data.tmp <- img.data.tmp[-which(is.na(img.data.tmp$marcat)),]
-anova(lm(dti_jlf_tr_MeanWholeBrainTR ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=data))
+anova(lm(dti_jlf_tr_MeanWholeBrainTR ~ ageatcnb1+sex+envses+(marcat+psychosis_ar_4factor)^2, data=img.data))
 out.plot.one <- ggplot(img.data.tmp, aes(x=psychosis_ar_4factor, y=dti_jlfHiLoLobe_tr_Occipital, group=marcat, color=factor(marcat))) +
 scale_colour_manual(name = "marcat",values=c("NU"="Red","OU"="Green","FU"="Blue")) +
 geom_smooth(method='lm') +
@@ -556,11 +554,3 @@ geom_smooth(method='lm')
 pdf('lobularMarcatVsPsych.pdf', width=30, height=10)
 out.plot.one
 dev.off()
-
-
-## Now plot regional effects here
-sig.lobe.index.vol <- c(2,3,5,6,7,9)
-sig.lobe.index.tr <- c(1,2,5,7,8,9)
-## Now go through all of the rois and identify those that belong to each lobe and
-## plot the conitnous interaction between marcat and psychosis for each of these
-

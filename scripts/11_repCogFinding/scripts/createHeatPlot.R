@@ -4,7 +4,7 @@ source('../functions/functions.R')
 ## Load the data
 data <- read.dta13('./cannabis_psychosis_cnb_foradon.dta')
 ## Now load the imaging data
-img.data <- read.csv("~/Documents/dataRel/n1601_imagingDataDump_2018-09-20.csv")
+img.data <- read.csv("./n1601_imagingDataDump_2018-09-20.csv")
 img.data <- img.data[which(img.data$tpvalue==1),]
 ## Now load the RDS
 data <-readRDS("../../01_dataPrep/scripts/mjPSCogImg.RDS")
@@ -36,8 +36,8 @@ for(i in to.rm){colnames(tmp.data) <- gsub(x=colnames(tmp.data), pattern=i, repl
 
 
 colnames(tmp.data)[1:5] <- c('Executive Complex','Overall Accuracy','Psychosis Factor','Total Brain Volume','Total Brain Mean Diffusivity')
-colnames(tmp.data)[c(4:10,18)] <- gsub(x=colnames(tmp.data)[c(4:10,18)], pattern='vol_', replacement='Volume ',perl=FALSE)
-colnames(tmp.data)[c(11:17,19)] <- gsub(x=colnames(tmp.data)[c(11:17,19)] , pattern='tr_', replacement='Mean Diffusivity ',perl=FALSE)
+#colnames(tmp.data)[c(4:10,18)] <- gsub(x=colnames(tmp.data)[c(4:10,18)], pattern='vol_', replacement='Volume ',perl=FALSE)
+#colnames(tmp.data)[c(11:17,19)] <- gsub(x=colnames(tmp.data)[c(11:17,19)] , pattern='tr_', replacement='Mean Diffusivity ',perl=FALSE)
 colnames(tmp.data) <- gsub(x=colnames(tmp.data), pattern='_', replacement=' ',perl=FALSE)
 tmp.vals <- colnames(tmp.data)
 cor.vals <- cor(tmp.data, use='pairwise')

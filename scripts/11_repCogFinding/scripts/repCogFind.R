@@ -4,7 +4,7 @@ install_load('readstata13','ggplot2')
 ## Load the data
 data <- read.dta13('./cannabis_psychosis_cnb_foradon.dta')
 ## Now load the imaging data
-img.data <- read.csv("~/Documents/dataRel/n2416_imagingDataDump_2018-04-22.csv")
+img.data <- read.csv("./n2416_imagingDataDump_2018-04-22.csv")
 img.data <- img.data[which(img.data$tpvalue==1),]
 ## Make a ps vs not ps group
 data$psBinary <- 'NO'
